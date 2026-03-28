@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User profiles ─────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Open access (admin uses fake token, no real Firebase auth) ────
+    match /businesses/{id} {
+      allow read, write: if true;
+    }
+    match /seller_applications/{id} {
+      allow read, write: if true;
+    }
+
+    // ── Open access for new collections ──────────────────────────────
+    match /investments/{id} {
+      allow read, write: if true;
+    }
+    match /violations/{id} {
+      allow read, write: if true;
+    }
+    match /user_flags/{id} {
+      allow read, write: if true;
+    }
+    match /badges/{id} {
+      allow read, write: if true;
+    }
+    match /notifications/{id} {
+      allow read, write: if true;
+    }
+    match /graph_requests/{id} {
+      allow read, write: if true;
+    }
+
+    // ── Authenticated users for everything else ───────────────────────
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

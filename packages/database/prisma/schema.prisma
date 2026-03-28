@@ -1,0 +1,697 @@
+// ============================================================
+// INVESTOR PANEL - PostgreSQL Schema via Prisma ORM
+// Multi-Tenant SaaS Architecture
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  SELLER
+  INVESTOR
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  TRIAL
+  CANCELLED
+  PAST_DUE
+}
+
+enum SubscriptionPlan {
+  STARTER
+  GROWTH
+  ENTERPRISE
+  CUSTOM
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+  PENDING
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+  COMPLETED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  PROFIT
+  LOSS
+  FEE
+  COIN_EARN
+  COIN_SPEND
+  REFUND
+}
+
+enum AdStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  DRAFT
+}
+
+enum AdPlacement {
+  INVESTOR_DASHBOARD_BANNER
+  INVESTOR_DASHBOARD_SIDEBAR
+  INVESTOR_DASHBOARD_FEED
+  INVESTOR_PORTFOLIO_TOP
+}
+
+enum NotificationType {
+  WITHDRAWAL_REQUEST
+  WITHDRAWAL_APPROVED
+  WITHDRAWAL_REJECTED
+  INVESTMENT_UPDATE
+  PROFIT_CREDITED
+  COIN_EARNED
+  SYSTEM_ALERT
+  MEETING_SCHEDULED
+  TASK_ASSIGNED
+  MESSAGE_RECEIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  PASSWORD_CHANGE
+  PROFILE_UPDATE
+  INVESTMENT_CREATE
+  INVESTMENT_UPDATE
+  INVESTMENT_DELETE
+  WITHDRAWAL_REQUEST
+  WITHDRAWAL_APPROVE
+  WITHDRAWAL_REJECT
+  SELLER_APPROVE
+  SELLER_SUSPEND
+  SELLER_DELETE
+  AD_CREATE
+  AD_UPDATE
+  SUBSCRIPTION_CREATE
+  SUBSCRIPTION_CANCEL
+  COIN_CREATE
+  COIN_UPDATE
+}
+
+// ─────────────────────────────────────────
+// CORE: TENANTS
+// ─────────────────────────────────────────
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  primaryColor String? @default("#06b6d4")
+  domain      String?  @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users         User[]
+  sellers       Seller[]
+  investors     Investor[]
+  investments   Investment[]
+  coins         Coin[]
+  transactions  Transaction[]
+  withdrawals   Withdrawal[]
+  subscriptions Subscription[]
+  activityLogs  ActivityLog[]
+  notifications Notification[]
+  tasks         Task[]
+  meetings      Meeting[]
+  messages      Message[]
+
+  @@index([slug])
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId      String
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(INVESTOR)
+  firstName     String
+  lastName      String
+  phone         String?
+  avatarUrl     String?
+  isActive      Boolean   @default(true)
+  isEmailVerified Boolean @default(false)
+  lastLoginAt   DateTime?
+  twoFactorSecret String?
+  twoFactorEnabled Boolean @default(false)
+  refreshToken  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seller        Seller?
+  investor      Investor?
+  activityLogs  ActivityLog[]
+  notifications Notification[]
+  sentMessages  Message[]     @relation("SentMessages")
+  receivedMessages Message[]  @relation("ReceivedMessages")
+  tasks         Task[]        @relation("AssignedTasks")
+  createdTasks  Task[]        @relation("CreatedTasks")
+
+  @@index([tenantId])
+  @@index([email])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────
+// SELLERS (Tenant Admins)
+// ─────────────────────────────────────────
+
+model Seller {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String   @unique
+  companyName     String
+  businessType    String?
+  totalInvestors  Int      @default(0)
+  totalInvested   Decimal  @default(0) @db.Decimal(18, 8)
+  totalProfit     Decimal  @default(0) @db.Decimal(18, 8)
+  commissionRate  Decimal  @default(0.02) @db.Decimal(5, 4)
+  isApproved      Boolean  @default(false)
+  approvedAt      DateTime?
+  isSuspended     Boolean  @default(false)
+  suspendedAt     DateTime?
+  suspendReason   String?
+  stripeCustomerId String?
+  website         String?
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investors       Investor[]
+  investments     Investment[]
+  coins           Coin[]
+  subscriptions   Subscription[]
+  ads             Ad[]
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("sellers")
+}
+
+// ─────────────────────────────────────────
+// INVESTORS
+// ─────────────────────────────────────────
+
+model Investor {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sellerId        String
+  userId          String   @unique
+  totalInvested   Decimal  @default(0) @db.Decimal(18, 8)
+  totalProfit     Decimal  @default(0) @db.Decimal(18, 8)
+  totalWithdrawn  Decimal  @default(0) @db.Decimal(18, 8)
+  coinBalance     Decimal  @default(0) @db.Decimal(18, 8)
+  referralCode    String?  @unique
+  referredBy      String?
+  riskProfile     String?  @default("MODERATE")
+  isActive        Boolean  @default(true)
+  kycStatus       String   @default("PENDING")
+  kycDocumentUrl  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seller          Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investments     Investment[]
+  transactions    Transaction[]
+  withdrawals     Withdrawal[]
+  coinLedger      CoinLedger[]
+  badges          InvestorBadge[]
+
+  @@index([tenantId])
+  @@index([sellerId])
+  @@index([userId])
+  @@map("investors")
+}
+
+// ─────────────────────────────────────────
+// INVESTMENTS
+// ─────────────────────────────────────────
+
+model Investment {
+  id              String          @id @default(cuid())
+  tenantId        String
+  sellerId        String
+  investorId      String
+  name            String
+  description     String?
+  channel         String          // META_ADS, TIKTOK_ADS, WHATSAPP, GOOGLE_ADS, OTHER
+  coinId          String?
+  amount          Decimal         @db.Decimal(18, 8)
+  currentValue    Decimal         @db.Decimal(18, 8)
+  profitLoss      Decimal         @default(0) @db.Decimal(18, 8)
+  profitPercent   Decimal         @default(0) @db.Decimal(10, 4)
+  status          InvestmentStatus @default(ACTIVE)
+  startDate       DateTime        @default(now())
+  endDate         DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seller          Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  investor        Investor      @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  coin            Coin?         @relation(fields: [coinId], references: [id])
+  transactions    Transaction[]
+  performanceData InvestmentPerformance[]
+
+  @@index([tenantId])
+  @@index([sellerId])
+  @@index([investorId])
+  @@index([status])
+  @@map("investments")
+}
+
+// ─────────────────────────────────────────
+// INVESTMENT PERFORMANCE (time-series)
+// ─────────────────────────────────────────
+
+model InvestmentPerformance {
+  id           String     @id @default(cuid())
+  investmentId String
+  value        Decimal    @db.Decimal(18, 8)
+  profitLoss   Decimal    @db.Decimal(18, 8)
+  profitPercent Decimal   @db.Decimal(10, 4)
+  recordedAt   DateTime   @default(now())
+
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([investmentId])
+  @@index([recordedAt])
+  @@map("investment_performance")
+}
+
+// ─────────────────────────────────────────
+// COINS (Custom Investment Tokens)
+// ─────────────────────────────────────────
+
+model Coin {
+  id            String   @id @default(cuid())
+  tenantId      String
+  sellerId      String
+  name          String
+  symbol        String   // e.g. META, TIKTOK, GROWTH
+  description   String?
+  iconUrl       String?
+  returnFormula String?  // e.g. "+5%" or "PRICE * 1.05"
+  returnRate    Decimal  @default(0) @db.Decimal(10, 4)
+  isPositive    Boolean  @default(true)
+  totalSupply   Decimal  @default(0) @db.Decimal(18, 8)
+  currentPrice  Decimal  @default(1) @db.Decimal(18, 8)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seller        Seller       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  investments   Investment[]
+  coinLedger    CoinLedger[]
+
+  @@index([tenantId])
+  @@index([sellerId])
+  @@map("coins")
+}
+
+// ─────────────────────────────────────────
+// COIN LEDGER
+// ─────────────────────────────────────────
+
+model CoinLedger {
+  id         String          @id @default(cuid())
+  tenantId   String
+  investorId String
+  coinId     String
+  type       TransactionType
+  amount     Decimal         @db.Decimal(18, 8)
+  balanceBefore Decimal      @db.Decimal(18, 8)
+  balanceAfter  Decimal      @db.Decimal(18, 8)
+  note       String?
+  createdAt  DateTime        @default(now())
+
+  investor   Investor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  coin       Coin     @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([investorId])
+  @@index([coinId])
+  @@map("coin_ledger")
+}
+
+// ─────────────────────────────────────────
+// TRANSACTIONS
+// ─────────────────────────────────────────
+
+model Transaction {
+  id           String          @id @default(cuid())
+  tenantId     String
+  investorId   String
+  investmentId String?
+  type         TransactionType
+  amount       Decimal         @db.Decimal(18, 8)
+  currency     String          @default("USD")
+  description  String?
+  reference    String?         @unique
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  investor     Investor    @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  investment   Investment? @relation(fields: [investmentId], references: [id])
+
+  @@index([tenantId])
+  @@index([investorId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+// ─────────────────────────────────────────
+// WITHDRAWALS
+// ─────────────────────────────────────────
+
+model Withdrawal {
+  id             String           @id @default(cuid())
+  tenantId       String
+  investorId     String
+  amount         Decimal          @db.Decimal(18, 8)
+  currency       String           @default("USD")
+  method         String           // BANK_TRANSFER, EASYPAISA, JAZZCASH, CRYPTO, STRIPE
+  accountDetails Json
+  status         WithdrawalStatus @default(PENDING)
+  requestedAt    DateTime         @default(now())
+  processedAt    DateTime?
+  processedBy    String?
+  rejectionReason String?
+  transactionHash String?
+  notes          String?
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  investor       Investor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([investorId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+// ─────────────────────────────────────────
+// SUBSCRIPTIONS
+// ─────────────────────────────────────────
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  tenantId            String
+  sellerId            String
+  plan                SubscriptionPlan   @default(STARTER)
+  status              SubscriptionStatus @default(TRIAL)
+  pricePerMonth       Decimal            @db.Decimal(10, 2)
+  pricePerSeat        Decimal            @db.Decimal(10, 2)
+  maxInvestors        Int                @default(10)
+  currentSeats        Int                @default(0)
+  stripeSubscriptionId String?
+  stripeCustomerId    String?
+  trialEndsAt         DateTime?
+  currentPeriodStart  DateTime           @default(now())
+  currentPeriodEnd    DateTime
+  cancelledAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seller              Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  payments            SubscriptionPayment[]
+
+  @@index([tenantId])
+  @@index([sellerId])
+  @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  amount         Decimal  @db.Decimal(10, 2)
+  currency       String   @default("USD")
+  stripePaymentId String?
+  paidAt         DateTime @default(now())
+  status         String   @default("succeeded")
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@map("subscription_payments")
+}
+
+// ─────────────────────────────────────────
+// ADS
+// ─────────────────────────────────────────
+
+model Ad {
+  id          String      @id @default(cuid())
+  tenantId    String?
+  sellerId    String?
+  title       String
+  description String?
+  imageUrl    String?
+  linkUrl     String?
+  placement   AdPlacement @default(INVESTOR_DASHBOARD_BANNER)
+  status      AdStatus    @default(DRAFT)
+  targetRole  Role        @default(INVESTOR)
+  impressions Int         @default(0)
+  clicks      Int         @default(0)
+  startsAt    DateTime    @default(now())
+  endsAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  seller      Seller? @relation(fields: [sellerId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([placement])
+  @@map("ads")
+}
+
+// ─────────────────────────────────────────
+// ACTIVITY LOGS (Audit Trail)
+// ─────────────────────────────────────────
+
+model ActivityLog {
+  id         String      @id @default(cuid())
+  tenantId   String
+  userId     String?
+  action     AuditAction
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User?   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────
+// TEAM COLLABORATION: TASKS
+// ─────────────────────────────────────────
+
+model Task {
+  id          String       @id @default(cuid())
+  tenantId    String
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  assignedTo  String?
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignee    User?   @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  creator     User    @relation("CreatedTasks", fields: [createdBy], references: [id])
+
+  @@index([tenantId])
+  @@index([assignedTo])
+  @@map("tasks")
+}
+
+// ─────────────────────────────────────────
+// MEETINGS
+// ─────────────────────────────────────────
+
+model Meeting {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  description String?
+  scheduledAt DateTime
+  duration    Int      @default(60) // minutes
+  meetingLink String?
+  participants String[] // Array of user IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("meetings")
+}
+
+// ─────────────────────────────────────────
+// MESSAGES (Internal Messaging)
+// ─────────────────────────────────────────
+
+model Message {
+  id         String   @id @default(cuid())
+  tenantId   String
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean  @default(false)
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sender     User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@map("messages")
+}
+
+// ─────────────────────────────────────────
+// GAMIFICATION: BADGES
+// ─────────────────────────────────────────
+
+model Badge {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  iconUrl     String?
+  criteria    String
+  createdAt   DateTime @default(now())
+
+  investors   InvestorBadge[]
+
+  @@map("badges")
+}
+
+model InvestorBadge {
+  id         String   @id @default(cuid())
+  investorId String
+  badgeId    String
+  earnedAt   DateTime @default(now())
+
+  investor   Investor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  badge      Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([investorId, badgeId])
+  @@map("investor_badges")
+}
+
+// ─────────────────────────────────────────
+// SUBSCRIPTION PLANS (Platform Config)
+// ─────────────────────────────────────────
+
+model PlanConfig {
+  id             String           @id @default(cuid())
+  name           String
+  plan           SubscriptionPlan @unique
+  pricePerMonth  Decimal          @db.Decimal(10, 2)
+  pricePerSeat   Decimal          @db.Decimal(10, 2)
+  maxInvestors   Int
+  features       String[]
+  isActive       Boolean          @default(true)
+  stripePriceId  String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@map("plan_configs")
+}
