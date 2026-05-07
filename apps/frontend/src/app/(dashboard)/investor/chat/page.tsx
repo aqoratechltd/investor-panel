@@ -7,7 +7,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { useAuthStore } from '@/stores/auth.store'
 import {
   MessageSquare, Send, Building2, ArrowLeft, Loader2,
-  AlertTriangle, ShieldOff, TrendingUp, Lock, Unlock,
+  AlertTriangle, ShieldOff, TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { checkMessage } from '@/lib/moderation'
@@ -53,7 +53,8 @@ function fmtDate(v: any) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-const UNLOCK_THRESHOLD = 10
+// Direct-to-Market: message threshold removed. Invest is always available.
+// TO RE-ENABLE: Restore const UNLOCK_THRESHOLD = 10 and all lock/unlock UI below.
 
 export default function InvestorChatPage() {
   const { user } = useAuthStore()
@@ -75,8 +76,8 @@ export default function InvestorChatPage() {
   const [violationCount, setViolationCount] = useState(0)
 
   const activeRoom = rooms.find(r => r.id === activeId)
-  const msgCount = activeRoom?.messageCount ?? 0
-  const investUnlocked = activeRoom?.investUnlocked || msgCount >= UNLOCK_THRESHOLD
+  // Direct-to-Market: invest always unlocked, no threshold gate.
+  const investUnlocked = true
 
   // Load user block/violation status
   useEffect(() => {
@@ -267,15 +268,9 @@ export default function InvestorChatPage() {
                         <p className="text-xs text-muted-foreground/70 truncate mt-1">{room.lastMessage}</p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
-                        {(room.investUnlocked || (room.messageCount ?? 0) >= UNLOCK_THRESHOLD) ? (
-                          <span className="flex items-center gap-1 text-xs text-emerald-400">
-                            <Unlock className="w-3 h-3" /> Invest unlocked
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground/50">
-                            <Lock className="w-3 h-3" /> {room.messageCount ?? 0}/{UNLOCK_THRESHOLD} msgs
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1 text-xs text-emerald-400">
+                          <TrendingUp className="w-3 h-3" /> Invest available
+                        </span>
                         {room.unreadInvestor > 0 && (
                           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-500 text-obsidian-950 text-xs font-bold">
                             {room.unreadInvestor}
@@ -309,18 +304,11 @@ export default function InvestorChatPage() {
                   <p className="font-semibold text-sm">{activeRoom.businessName}</p>
                   <p className="text-xs text-muted-foreground">Seller: {activeRoom.sellerName}</p>
                 </div>
-                {/* Investment unlock status + button */}
-                {investUnlocked ? (
-                  <a href={`/investor/marketplace/${activeRoom.businessId}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 text-xs font-bold transition-all">
-                    <TrendingUp className="w-3.5 h-3.5" /> Invest Now
-                  </a>
-                ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-obsidian-800 text-muted-foreground text-xs border border-border">
-                    <Lock className="w-3.5 h-3.5" />
-                    {msgCount}/{UNLOCK_THRESHOLD} msgs to unlock
-                  </div>
-                )}
+                {/* Direct-to-Market: Invest Now always visible */}
+                <a href={`/investor/marketplace/${activeRoom.businessId}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 text-xs font-bold transition-all">
+                  <TrendingUp className="w-3.5 h-3.5" /> Invest Now
+                </a>
               </div>
 
               {/* Blocked banner */}
@@ -337,9 +325,6 @@ export default function InvestorChatPage() {
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
                     <MessageSquare className="w-8 h-8 text-muted-foreground/30" />
                     <p className="text-sm text-muted-foreground">Start the conversation about <span className="text-brand-400">{activeRoom.businessName}</span></p>
-                    {!investUnlocked && (
-                      <p className="text-xs text-muted-foreground/60 max-w-xs">Exchange {UNLOCK_THRESHOLD} messages to unlock the ability to invest in this business.</p>
-                    )}
                   </div>
                 )}
                 {messages.map(msg => {
@@ -362,22 +347,6 @@ export default function InvestorChatPage() {
                 })}
                 <div ref={bottomRef} />
               </div>
-
-              {/* Progress bar to investment unlock */}
-              {!investUnlocked && (
-                <div className="px-4 pb-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Investment locked</span>
-                    <span>{msgCount}/{UNLOCK_THRESHOLD} messages</span>
-                  </div>
-                  <div className="h-1 bg-obsidian-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(100, (msgCount / UNLOCK_THRESHOLD) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Input */}
               <div className="p-4 border-t border-border bg-obsidian-950">

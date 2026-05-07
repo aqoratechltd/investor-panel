@@ -75,19 +75,22 @@ export default function AdminSellerApplicationsPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
 
-  const API = process.env.NEXT_PUBLIC_API_URL
-
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API}/admin/seller-applications`)
-        const data = await res.json()
-        const raw: any[] = Array.isArray(data) ? data : (data?.data ?? [])
-        const apps: SellerApplication[] = raw.map(d => ({
-          ...d,
-          submittedAt: d.submittedAt ? new Date(d.submittedAt) : new Date(),
-          reviewedAt: d.reviewedAt ? new Date(d.reviewedAt) : undefined,
-        }))
+        const { db } = await import('@/lib/firebase')
+        const { collection, getDocs } = await import('firebase/firestore')
+        const snap = await getDocs(collection(db, 'seller_applications'))
+        const apps: SellerApplication[] = snap.docs.map(d => {
+          const data = d.data()
+          return {
+            ...data,
+            id: d.id,
+            submittedAt: data.submittedAt ? new Date(data.submittedAt) : new Date(),
+            reviewedAt: data.reviewedAt ? new Date(data.reviewedAt) : undefined,
+          } as SellerApplication
+        })
+        apps.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
         setApplications(apps)
       } catch (e) {
         console.error(e)
@@ -102,11 +105,16 @@ export default function AdminSellerApplicationsPage() {
   const handleApprove = async (app: SellerApplication) => {
     setActionLoading(true)
     try {
-      const res = await fetch(`${API}/admin/seller-applications/${app.id}/approve`, { method: 'PATCH' })
-      if (!res.ok) throw new Error(await res.text())
-      setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'APPROVED', reviewedAt: new Date() } : a))
-      setSelected(prev => prev?.id === app.id ? { ...prev, status: 'APPROVED', reviewedAt: new Date() } : prev)
-      toast.success(`${app.fullName} approved. Business listing created and sent for final review.`)
+      const { db } = await import('@/lib/firebase')
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const now = new Date()
+      await updateDoc(doc(db, 'seller_applications', app.id), {
+        status: 'APPROVED',
+        reviewedAt: now.toISOString(),
+      })
+      setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'APPROVED', reviewedAt: now } : a))
+      setSelected(prev => prev?.id === app.id ? { ...prev, status: 'APPROVED', reviewedAt: now } : prev)
+      toast.success(`${app.fullName} approved.`)
     } catch (e: any) {
       toast.error('Approval failed: ' + e.message)
     }
@@ -117,16 +125,18 @@ export default function AdminSellerApplicationsPage() {
     if (!rejectReason.trim()) return
     setActionLoading(true)
     try {
-      const res = await fetch(`${API}/admin/seller-applications/${app.id}/reject`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectReason.trim() }),
+      const { db } = await import('@/lib/firebase')
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const now = new Date()
+      await updateDoc(doc(db, 'seller_applications', app.id), {
+        status: 'REJECTED',
+        rejectionReason: rejectReason.trim(),
+        reviewedAt: now.toISOString(),
       })
-      if (!res.ok) throw new Error(await res.text())
       setApplications(prev => prev.map(a => a.id === app.id
-        ? { ...a, status: 'REJECTED', rejectionReason: rejectReason.trim(), reviewedAt: new Date() } : a))
+        ? { ...a, status: 'REJECTED', rejectionReason: rejectReason.trim(), reviewedAt: now } : a))
       setSelected(prev => prev?.id === app.id
-        ? { ...prev, status: 'REJECTED', rejectionReason: rejectReason.trim(), reviewedAt: new Date() } : prev)
+        ? { ...prev, status: 'REJECTED', rejectionReason: rejectReason.trim(), reviewedAt: now } : prev)
       setRejecting(false)
       setRejectReason('')
       toast.success(`${app.fullName} rejected.`)

@@ -7,7 +7,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { useAuthStore } from '@/stores/auth.store'
 import {
   MessageSquare, Send, User, ArrowLeft, Loader2,
-  AlertTriangle, ShieldOff, TrendingUp, Lock, Unlock,
+  AlertTriangle, ShieldOff, TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { checkMessage } from '@/lib/moderation'
@@ -51,7 +51,8 @@ function fmtDate(v: any) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-const UNLOCK_THRESHOLD = 10
+// Direct-to-Market: message threshold removed. Invest is always available.
+// TO RE-ENABLE: Restore const UNLOCK_THRESHOLD = 10 and all lock/unlock UI below.
 
 export default function SellerInboxPage() {
   const { user } = useAuthStore()
@@ -72,8 +73,8 @@ export default function SellerInboxPage() {
   const [violationCount, setViolationCount] = useState(0)
 
   const activeRoom = rooms.find(r => r.id === activeId)
-  const msgCount = activeRoom?.messageCount ?? 0
-  const investUnlocked = activeRoom?.investUnlocked || msgCount >= UNLOCK_THRESHOLD
+  // Direct-to-Market: invest always unlocked, no threshold gate.
+  const investUnlocked = true
 
   // Load user block/violation status
   useEffect(() => {
@@ -212,14 +213,6 @@ export default function SellerInboxPage() {
     setSending(false)
   }
 
-  const handleUnlockInvestment = async () => {
-    if (!activeId) return
-    const { db } = await import('@/lib/firebase')
-    const { doc, updateDoc } = await import('firebase/firestore')
-    await updateDoc(doc(db, 'chats', activeId), { investUnlocked: true })
-    toast.success('Investment unlocked for this investor!')
-  }
-
   const selectRoom = (id: string) => {
     setActiveId(id)
     setMobileView('chat')
@@ -270,15 +263,9 @@ export default function SellerInboxPage() {
                         <p className="text-xs text-muted-foreground/70 truncate mt-1">{room.lastMessage}</p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
-                        {(room.investUnlocked || (room.messageCount ?? 0) >= UNLOCK_THRESHOLD) ? (
-                          <span className="flex items-center gap-1 text-xs text-emerald-400">
-                            <Unlock className="w-3 h-3" /> Invest unlocked
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground/50">
-                            <Lock className="w-3 h-3" /> {room.messageCount ?? 0}/{UNLOCK_THRESHOLD} msgs
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1 text-xs text-emerald-400">
+                          <TrendingUp className="w-3 h-3" /> Invest available
+                        </span>
                         {room.unreadSeller > 0 && (
                           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-500 text-obsidian-950 text-xs font-bold">
                             {room.unreadSeller}
@@ -308,20 +295,10 @@ export default function SellerInboxPage() {
                   <p className="font-semibold text-sm">{activeRoom.investorName}</p>
                   <p className="text-xs text-brand-400">{activeRoom.businessName}</p>
                 </div>
-                {/* Seller manual unlock */}
-                {!investUnlocked && (
-                  <button
-                    onClick={handleUnlockInvestment}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-obsidian-800 hover:bg-emerald-500/10 hover:text-emerald-400 text-muted-foreground text-xs border border-border transition-all"
-                  >
-                    <Unlock className="w-3.5 h-3.5" /> Unlock Invest
-                  </button>
-                )}
-                {investUnlocked && (
-                  <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs border border-emerald-500/20">
-                    <TrendingUp className="w-3.5 h-3.5" /> Invest Enabled
-                  </span>
-                )}
+                {/* Direct-to-Market: invest always enabled */}
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs border border-emerald-500/20">
+                  <TrendingUp className="w-3.5 h-3.5" /> Invest Enabled
+                </span>
               </div>
 
               {/* Blocked banner */}
@@ -359,22 +336,6 @@ export default function SellerInboxPage() {
                 })}
                 <div ref={bottomRef} />
               </div>
-
-              {/* Progress bar */}
-              {!investUnlocked && (
-                <div className="px-4 pb-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Investment locked</span>
-                    <span>{msgCount}/{UNLOCK_THRESHOLD} messages</span>
-                  </div>
-                  <div className="h-1 bg-obsidian-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(100, (msgCount / UNLOCK_THRESHOLD) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
 
               <div className="p-4 border-t border-border bg-obsidian-950">
                 <div className="flex items-center gap-3">

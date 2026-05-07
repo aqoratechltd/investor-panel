@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
+import { useInvestorStore } from '@/stores/investor.store'
 
 const ALLOWED_PATHS = ['/investor/marketplace', '/investor/chat', '/investor/onboarding']
 
 export default function InvestorLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuthStore()
+  const { initialize, isLoaded }  = useInvestorStore()
   const router = useRouter()
   const pathname = usePathname()
   const [checked, setChecked] = useState(false)
@@ -47,6 +49,11 @@ export default function InvestorLayout({ children }: { children: React.ReactNode
 
     checkOnboarding()
   }, [isAuthenticated, user, pathname, router])
+
+  // Seed the investor store from Firestore once per user session
+  useEffect(() => {
+    if (user?.id && !isLoaded) initialize(user.id)
+  }, [user?.id, isLoaded, initialize])
 
   if (!checked) {
     return (

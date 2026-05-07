@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Star, TrendingUp, Users, DollarSign, BarChart3,
   X, ChevronDown, SlidersHorizontal, Zap, Building2, Coins,
-  Shield, AlertTriangle, Info, Send, Trophy,
+  Shield, AlertTriangle, Info, Send, Trophy, MessageCircle,
+  ShieldCheck, CheckCheck, Loader2, BrainCircuit,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn, formatCurrency, formatPercent } from '@/lib/utils'
@@ -447,12 +448,345 @@ function ContactModal({
   )
 }
 
+// ── Platform Chat Widget ──────────────────────────────────────
+interface WidgetMessage {
+  id: string
+  senderRole: 'USER' | 'ADMIN'
+  senderName: string
+  text: string
+  createdAt: any
+}
+
+function PlatformChatWidget() {
+  const { user }                        = useAuthStore()
+  const [open, setOpen]                 = useState(false)
+  const [messages, setMessages]         = useState<WidgetMessage[]>([])
+  const [text, setText]                 = useState('')
+  const [sending, setSending]           = useState(false)
+  const [chatReady, setChatReady]       = useState(false)
+  const [unread, setUnread]             = useState(0)
+  // Guest fields
+  const [guestName, setGuestName]       = useState('')
+  const [guestEmail, setGuestEmail]     = useState('')
+  const [guestStarted, setGuestStarted] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const chatId = user ? `platform_${user.id}` : null
+
+  // Load chat for logged-in users
+  useEffect(() => {
+    if (!user || !open) return
+    let unsub: () => void
+    const setup = async () => {
+      const id = `platform_${user.id}`
+      try {
+        const { db } = await import('@/lib/firebase')
+        const {
+          doc, getDoc, setDoc, collection, query,
+          orderBy, onSnapshot, serverTimestamp, updateDoc,
+        } = await import('firebase/firestore')
+        const chatRef = doc(db, 'platform_chats', id)
+        const snap    = await getDoc(chatRef)
+        if (!snap.exists()) {
+          await setDoc(chatRef, {
+            investorId:    user.id,
+            investorName:  `${user.firstName} ${user.lastName}`,
+            investorEmail: user.email,
+            lastMessage:   '',
+            lastMessageAt: serverTimestamp(),
+            unreadAdmin:   0,
+            unreadInvestor: 0,
+            status:        'OPEN',
+            createdAt:     serverTimestamp(),
+          })
+        }
+        await updateDoc(chatRef, { unreadInvestor: 0 }).catch(() => {})
+        const q = query(collection(db, 'platform_chats', id, 'messages'), orderBy('createdAt', 'asc'))
+        unsub = onSnapshot(q, (s) => {
+          setMessages(s.docs.map(d => ({ id: d.id, ...d.data() }) as WidgetMessage))
+          updateDoc(chatRef, { unreadInvestor: 0 }).catch(() => {})
+          setChatReady(true)
+        })
+      } catch (e) { console.error(e); setChatReady(true) }
+    }
+    setup()
+    return () => { unsub?.() }
+  }, [user?.id, open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll unread count when widget is closed (logged-in only)
+  useEffect(() => {
+    if (!user || open) return
+    const poll = async () => {
+      try {
+        const { db } = await import('@/lib/firebase')
+        const { doc, getDoc } = await import('firebase/firestore')
+        const snap = await getDoc(doc(db, 'platform_chats', `platform_${user.id}`))
+        if (snap.exists()) setUnread(snap.data().unreadInvestor ?? 0)
+      } catch {}
+    }
+    poll()
+  }, [user?.id, open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, open])
+
+  const sendMessage = async (msg: string) => {
+    if (!msg.trim() || sending) return
+    setSending(true)
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { collection, addDoc, doc, setDoc, updateDoc, serverTimestamp, increment, getDoc } = await import('firebase/firestore')
+
+      if (user) {
+        const id = `platform_${user.id}`
+        await addDoc(collection(db, 'platform_chats', id, 'messages'), {
+          senderId:   user.id,
+          senderName: `${user.firstName} ${user.lastName}`,
+          senderRole: 'USER',
+          text:       msg,
+          createdAt:  serverTimestamp(),
+        })
+        await updateDoc(doc(db, 'platform_chats', id), {
+          lastMessage:   msg,
+          lastMessageAt: serverTimestamp(),
+          unreadAdmin:   increment(1),
+          unreadInvestor: 0,
+        })
+      } else {
+        // Guest: create/append to guest chat
+        const guestId = `guest_${guestEmail.replace(/[^a-z0-9]/gi, '_')}`
+        const chatRef = doc(db, 'platform_chats', guestId)
+        const snap    = await getDoc(chatRef)
+        if (!snap.exists()) {
+          await setDoc(chatRef, {
+            investorId:    guestId,
+            investorName:  guestName,
+            investorEmail: guestEmail,
+            lastMessage:   '',
+            lastMessageAt: serverTimestamp(),
+            unreadAdmin:   0,
+            unreadInvestor: 0,
+            status:        'OPEN',
+            isGuest:       true,
+            createdAt:     serverTimestamp(),
+          })
+        }
+        const newMsg: WidgetMessage = {
+          id:         `local_${Date.now()}`,
+          senderRole: 'USER',
+          senderName: guestName,
+          text:       msg,
+          createdAt:  new Date(),
+        }
+        setMessages(prev => [...prev, newMsg])
+        await addDoc(collection(db, 'platform_chats', guestId, 'messages'), {
+          senderId:   guestId,
+          senderName: guestName,
+          senderRole: 'USER',
+          text:       msg,
+          createdAt:  serverTimestamp(),
+        })
+        await updateDoc(chatRef, {
+          lastMessage:   msg,
+          lastMessageAt: serverTimestamp(),
+          unreadAdmin:   increment(1),
+        })
+      }
+    } catch (e) { console.error(e) }
+    setSending(false)
+  }
+
+  const handleSend = async () => {
+    const msg = text.trim()
+    if (!msg) return
+    setText('')
+    await sendMessage(msg)
+  }
+
+  const showGuestForm = !user && !guestStarted
+  const showChat      = user ? chatReady : guestStarted
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => { setOpen(o => !o); setUnread(0) }}
+        className={cn(
+          'fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl transition-all duration-300',
+          'bg-brand-500 hover:bg-brand-400 text-obsidian-950 font-semibold text-sm',
+          open && 'opacity-0 pointer-events-none',
+        )}
+        style={{ boxShadow: '0 8px 32px rgba(6,182,212,0.4)' }}
+      >
+        <BrainCircuit className="w-4 h-4" />
+        Work With Platform
+        {unread > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-background">
+            {unread}
+          </span>
+        )}
+      </button>
+
+      {/* Chat panel */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2, ease: [0.21, 0.47, 0.32, 0.98] }}
+            className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+            style={{
+              height: '520px',
+              background: 'linear-gradient(180deg, #0a1628 0%, #0d1f36 100%)',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-white/8 flex-shrink-0">
+              <div className="relative">
+                <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 text-violet-400" />
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 bg-amber-400" style={{ borderColor: '#0a1628' }} />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-sm">Platform Support</p>
+                <p className="text-xs text-amber-400">InvestorPanel Admin · Replies in 24h</p>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            {showGuestForm ? (
+              <div className="flex-1 flex flex-col justify-center p-6 gap-4">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto mb-3">
+                    <MessageCircle className="w-6 h-6 text-brand-400" />
+                  </div>
+                  <p className="font-semibold">Chat with our team</p>
+                  <p className="text-xs text-muted-foreground mt-1">Introduce yourself to get started</p>
+                </div>
+                <input
+                  value={guestName}
+                  onChange={e => setGuestName(e.target.value)}
+                  placeholder="Your name"
+                  className="w-full h-10 px-3 rounded-xl border border-white/10 bg-white/[0.04] text-sm focus:outline-none focus:ring-1 focus:ring-brand-500/50 transition-all"
+                />
+                <input
+                  value={guestEmail}
+                  onChange={e => setGuestEmail(e.target.value)}
+                  placeholder="Your email"
+                  type="email"
+                  className="w-full h-10 px-3 rounded-xl border border-white/10 bg-white/[0.04] text-sm focus:outline-none focus:ring-1 focus:ring-brand-500/50 transition-all"
+                />
+                <button
+                  disabled={!guestName.trim() || !guestEmail.trim()}
+                  onClick={() => setGuestStarted(true)}
+                  className="w-full h-10 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 text-obsidian-950 font-semibold text-sm transition-all"
+                >
+                  Start Chatting
+                </button>
+              </div>
+            ) : showChat ? (
+              <>
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                      <MessageCircle className="w-8 h-8 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">
+                        Hi {user ? user.firstName : guestName}! How can we help you today?
+                      </p>
+                    </div>
+                  )}
+                  {messages.map((msg) => {
+                    const isMe = msg.senderRole === 'USER'
+                    return (
+                      <div key={msg.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+                        {!isMe && (
+                          <div className="w-6 h-6 rounded-lg bg-violet-500/20 flex items-center justify-center mr-1.5 mt-1 flex-shrink-0">
+                            <ShieldCheck className="w-3 h-3 text-violet-400" />
+                          </div>
+                        )}
+                        <div className={cn(
+                          'max-w-[80%] rounded-2xl px-3 py-2',
+                          isMe
+                            ? 'bg-brand-500 text-obsidian-950 rounded-br-sm text-sm'
+                            : 'bg-white/[0.06] text-foreground rounded-bl-sm border border-white/8 text-sm',
+                        )}>
+                          {!isMe && (
+                            <p className="text-[9px] font-semibold text-violet-400 mb-0.5">Platform Admin</p>
+                          )}
+                          <p>{msg.text}</p>
+                          {isMe && <CheckCheck className="w-2.5 h-2.5 text-obsidian-950/50 ml-auto mt-0.5" />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <AnimatePresence>
+                    {sending && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex justify-end"
+                      >
+                        <div className="px-3 py-2 rounded-2xl rounded-br-sm bg-brand-500/30">
+                          <Loader2 className="w-3.5 h-3.5 text-brand-300 animate-spin" />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div ref={bottomRef} />
+                </div>
+
+                {/* Input */}
+                <div className="p-3 border-t border-white/8 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={text}
+                      onChange={e => setText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                      placeholder="Type a message…"
+                      className="flex-1 h-10 px-3 rounded-xl border border-white/10 bg-white/[0.04] text-sm focus:outline-none focus:ring-1 focus:ring-brand-500/50 transition-all"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!text.trim() || sending}
+                      className="w-10 h-10 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 flex items-center justify-center transition-all flex-shrink-0"
+                    >
+                      <Send className="w-3.5 h-3.5 text-obsidian-950" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function MarketplacePage() {
-  const { assets, filter, setFilter } = useMarketplaceStore()
+  const { assets, filter, setFilter, initialize, isLoaded } = useMarketplaceStore()
   const { user } = useAuthStore()
   const { format } = useCurrencyStore()
   const [search, setSearch] = useState('')
+
+  useEffect(() => { if (!isLoaded) initialize() }, [isLoaded, initialize])
   const [chartAsset, setChartAsset] = useState<MarketAsset | null>(null)
   const [contactAsset, setContactAsset] = useState<MarketAsset | null>(null)
 
@@ -708,6 +1042,9 @@ export default function MarketplacePage() {
           <ContactModal asset={contactAsset} onClose={() => setContactAsset(null)} />
         )}
       </AnimatePresence>
+
+      {/* Platform Chat Widget */}
+      <PlatformChatWidget />
 
       {/* Chart Modal */}
       <AnimatePresence>

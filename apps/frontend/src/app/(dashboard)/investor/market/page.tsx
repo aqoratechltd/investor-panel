@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { TrendingUp, TrendingDown, Activity, Search, Star, Sparkles, RefreshCw } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
@@ -19,8 +19,11 @@ function getChart(id: string, price: number, vol: number) {
 }
 
 export default function MarketPage() {
-  const { assets } = useMarketplaceStore()
+  const { assets, initialize, isLoaded } = useMarketplaceStore()
   const { format } = useCurrencyStore()
+
+  useEffect(() => { if (!isLoaded) initialize() }, [isLoaded, initialize])
+
   const [selected, setSelected] = useState(assets[0])
   const [search, setSearch] = useState('')
   const [aiInsight, setAiInsight] = useState<string | null>(null)

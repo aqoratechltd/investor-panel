@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { cn, formatCurrency, formatPercent } from '@/lib/utils'
 import { useMarketplaceStore, type MarketAsset } from '@/stores/marketplace.store'
 import { usePortfolioStore } from '@/stores/portfolio.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { StatusBadge } from '@/components/ui/status-badge'
 
 // ── Step Indicator ────────────────────────────────────────────
@@ -592,10 +593,14 @@ function DriftController({ selectedAssets }: { selectedAssets: MarketAsset[] }) 
 export default function PortfolioManagerPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { inquiries } = useMarketplaceStore()
-  const { assets } = useMarketplaceStore()
-  const { createPortfolio } = usePortfolioStore()
-  const { aiSuggestion } = usePortfolioStore()
+  const { inquiries, assets, initialize: initMarket, isLoaded: marketLoaded } = useMarketplaceStore()
+  const { createPortfolio, loadPortfolios, aiSuggestion } = usePortfolioStore()
+  const { user } = useAuthStore()
+
+  useEffect(() => {
+    if (!marketLoaded) initMarket()
+    if (user?.id) loadPortfolios(user.id)
+  }, [user?.id, marketLoaded, initMarket, loadPortfolios])
 
   const preselectedInvestorId = searchParams.get('investorId') || ''
 

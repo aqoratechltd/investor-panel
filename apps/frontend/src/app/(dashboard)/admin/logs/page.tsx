@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   FileText, Search,
@@ -54,8 +54,10 @@ const FILTER_MAP: Record<FilterType, string[]> = {
 }
 
 export default function AdminLogsPage() {
-  const { logs } = useAdminStore()
+  const { logs, initialize, isLoaded } = useAdminStore()
   const [filter, setFilter] = useState<FilterType>('ALL')
+
+  useEffect(() => { if (!isLoaded) initialize() }, [isLoaded, initialize])
   const [search, setSearch] = useState('')
 
   const filtered = logs.filter(log => {

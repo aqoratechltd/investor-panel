@@ -94,12 +94,15 @@ export default function SellerBusinessesPage() {
             <h1 className="text-2xl font-bold font-display">My Businesses</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your business listings on the marketplace</p>
           </div>
-          <button
-            onClick={() => router.push('/seller/businesses/create')}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-obsidian-950 text-sm font-semibold transition-all"
-          >
-            <Plus className="w-4 h-4" /> New Business
-          </button>
+          {/* Direct-to-Market: only show create button when no business exists yet */}
+          {!loading && businesses.length === 0 && (
+            <button
+              onClick={() => router.push('/seller/businesses/create')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-obsidian-950 text-sm font-semibold transition-all"
+            >
+              <Plus className="w-4 h-4" /> New Business
+            </button>
+          )}
         </div>
 
         {/* Stats */}

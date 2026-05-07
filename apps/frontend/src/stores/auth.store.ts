@@ -57,7 +57,6 @@ interface AuthState {
   isLoading: boolean
   emailVerified: boolean
   phoneVerified: boolean
-
   login: (email: string, password: string) => Promise<void>
   loginWithPhone: (confirmationResult: any, otp: string) => Promise<void>
   register: (params: {
@@ -86,7 +85,6 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       emailVerified: false,
       phoneVerified: false,
-
       // ── Login (email/password) ─────────────────────────────────────────
       login: async (email, password) => {
         set({ isLoading: true })

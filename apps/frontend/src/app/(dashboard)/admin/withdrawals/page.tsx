@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowDownToLine, CheckCircle, XCircle, Eye, DollarSign, Clock, AlertCircle, Filter, X } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
@@ -47,7 +47,8 @@ function RejectModal({ withdrawal, onConfirm, onClose }: { withdrawal: AdminWith
 }
 
 export default function AdminWithdrawalsPage() {
-  const { withdrawals, approveWithdrawal, rejectWithdrawal, markWithdrawalProcessing, markWithdrawalCompleted } = useAdminStore()
+  const { withdrawals, approveWithdrawal, rejectWithdrawal, markWithdrawalProcessing, markWithdrawalCompleted, initialize, isLoaded } = useAdminStore()
+  useEffect(() => { if (!isLoaded) initialize() }, [isLoaded, initialize])
   const [filter, setFilter] = useState<FilterStatus>('ALL')
   const [rejectTarget, setRejectTarget] = useState<AdminWithdrawal | null>(null)
 

@@ -131,6 +131,8 @@ export default function BusinessDetailPage() {
       if (!existing.empty) {
         newChatId = existing.docs[0].id
       } else {
+        // Direct-to-Market: invest unlocked immediately on chat creation, no threshold required.
+        // TO RE-ENABLE: Set investUnlocked: false and restore the 10-message gate in chat pages.
         const chatRef = await addDoc(collection(db, 'chats'), {
           businessId:   business.id,
           businessName: business.name,
@@ -144,7 +146,7 @@ export default function BusinessDetailPage() {
           unreadSeller: 0,
           unreadInvestor: 0,
           messageCount: 0,
-          investUnlocked: false,
+          investUnlocked: true,
         })
         newChatId = chatRef.id
       }

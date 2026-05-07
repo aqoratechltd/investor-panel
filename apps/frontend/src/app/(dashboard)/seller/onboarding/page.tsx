@@ -126,22 +126,19 @@ export default function SellerOnboarding() {
       if (!isFirebaseConfigured()) throw new Error('Firebase not configured')
       const { doc, setDoc } = await import('firebase/firestore')
 
-      // Upload P&L file via backend
-      const fd = new FormData()
-      fd.append('file', plFile)
-      fd.append('uid', user.id)
-      const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sellers/upload-pl`, { method: 'POST', body: fd })
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json().catch(() => ({}))
-        throw new Error(err?.message || 'File upload failed')
-      }
-      const uploadData     = await uploadRes.json()
-      const plStatementUrl = uploadData?.data?.url || uploadData?.url
+      // Upload P&L file to Firebase Storage
+      const { storage } = await import('@/lib/firebase')
+      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage')
+      const storageRef = ref(storage, `pl_statements/${user.id}/${Date.now()}_${plFile.name}`)
+      await uploadBytes(storageRef, plFile)
+      const plStatementUrl = await getDownloadURL(storageRef)
 
       const now = new Date()
       const lockedUntil = new Date(now)
       lockedUntil.setMonth(lockedUntil.getMonth() + 1)
 
+      // Direct-to-Market model: seller applications are auto-approved on submission.
+      // TO RE-ENABLE: Restore approval gate by setting status: 'PENDING' and routing to /seller/pending
       await setDoc(doc(db, 'seller_applications', user.id), {
         uid: user.id,
         fullName: form.fullName.trim(),
@@ -175,15 +172,15 @@ export default function SellerOnboarding() {
         // Meta
         plStatementUrl,
         plStatementName: plFile.name,
-        status: 'PENDING',
+        // Direct-to-Market: auto-approve, no admin review queue
+        status: 'APPROVED',
         submittedAt: now.toISOString(),
-        lockedUntil: lockedUntil.toISOString(),
-        reviewedAt: null,
+        reviewedAt: now.toISOString(),
         rejectionReason: null,
       })
 
-      toast.success("Application submitted! We'll review it shortly.", { id: 'seller-app' })
-      router.push('/seller/pending')
+      toast.success('Seller profile created! You can now list your business.', { id: 'seller-app' })
+      router.push('/seller')
     } catch (err: any) {
       toast.error(err?.message || 'Submission failed. Please try again.', { id: 'seller-app' })
     } finally {

@@ -236,7 +236,9 @@ export default function CreateBusinessPage() {
     touchStep(2)
     if (!stepValid[2] || !user) return
     setSaving(true)
-    toast.loading('Submitting business for review…', { id: 'biz' })
+    // Direct-to-Market model: businesses go live immediately on creation.
+    // TO RE-ENABLE: Set status: 'DRAFT' and restore admin review flow.
+    toast.loading('Publishing your business…', { id: 'biz' })
     try {
       const { db } = await import('@/lib/firebase')
       const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
@@ -253,10 +255,14 @@ export default function CreateBusinessPage() {
         equityOffered: n('equityOffered'), expectedROI: n('expectedROI'),
         lockPeriod: parseInt(form.lockPeriod) || 0, riskLevel: form.riskLevel, investmentType: form.investmentType,
         highlights: form.highlights.split('\n').map(h => h.trim()).filter(Boolean),
-        status: 'DRAFT', viewCount: 0, interestedCount: 0,
-        createdAt: serverTimestamp(), updatedAt: serverTimestamp(), reviewedAt: null, rejectionReason: null,
+        // Direct-to-Market: published immediately, visible to investors
+        status: 'PUBLISHED',
+        is_marketplace_visible: true,
+        viewCount: 0, interestedCount: 0,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        reviewedAt: serverTimestamp(), rejectionReason: null,
       })
-      toast.success('Business submitted! Admin will review within 48h.', { id: 'biz' })
+      toast.success('Business is now live on the marketplace!', { id: 'biz' })
       router.push('/seller/businesses')
     } catch (err: any) {
       toast.error(err?.message || 'Submission failed', { id: 'biz' })
@@ -271,7 +277,7 @@ export default function CreateBusinessPage() {
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">
             <h1 className="text-2xl font-bold font-display">List a New Business</h1>
-            <p className="text-sm text-muted-foreground mt-1">Reviewed by our admin team before going live.</p>
+            <p className="text-sm text-muted-foreground mt-1">Goes live on the marketplace immediately after submission.</p>
           </div>
 
           {/* Progress */}

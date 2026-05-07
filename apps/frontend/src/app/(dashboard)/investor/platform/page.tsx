@@ -2,37 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Send, Loader2, BrainCircuit, ShieldCheck, MessageSquare,
+  Sparkles, CheckCheck,
+} from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { useAuthStore } from '@/stores/auth.store'
-import {
-  Crown, Send, CheckCircle2, Clock, XCircle,
-  MessageSquare, Loader2, DollarSign, TrendingUp, Lock,
-} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
-interface PlatformRequest {
-  id: string
-  investorId: string
-  investorName: string
-  investorEmail: string
-  message: string
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED'
-  adminNote?: string
-  chatId?: string
-  deal?: {
-    amount: number
-    expectedROI: number
-    lockPeriod: number
-    status: 'PENDING_CONFIRM' | 'CONFIRMED'
-  }
-  createdAt: any
-}
-
-interface Message {
+interface PlatformMessage {
   id: string
   senderId: string
   senderName: string
+  senderRole: 'INVESTOR' | 'ADMIN'
   text: string
   createdAt: any
 }
@@ -40,399 +23,283 @@ interface Message {
 function fmtTime(v: any) {
   if (!v) return ''
   const d = v?.toDate ? v.toDate() : new Date(v)
-  const now = new Date()
-  const diff = (now.getTime() - d.getTime()) / 1000
-  if (diff < 86400) return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n}`
-}
+const STARTER_PROMPTS = [
+  'I want to learn more about how the platform works',
+  'I need help with my investment strategy',
+  'I have a question about fees and returns',
+  'How do I get started with my first investment?',
+]
 
 export default function InvestorPlatformPage() {
   const { user } = useAuthStore()
-  const [request, setRequest]       = useState<PlatformRequest | null>(null)
-  const [loading, setLoading]       = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [msgText, setMsgText]       = useState('')
-  const [messages, setMessages]     = useState<Message[]>([])
-  const [sending, setSending]       = useState(false)
-  const [pitch, setPitch]           = useState('')
+  const [messages, setMessages] = useState<PlatformMessage[]>([])
+  const [text, setText]         = useState('')
+  const [sending, setSending]   = useState(false)
+  const [loading, setLoading]   = useState(true)
+  const [chatId, setChatId]     = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Load existing request
   useEffect(() => {
-    if (!user?.id) return
-    const load = async () => {
+    if (!user) return
+    const id = `platform_${user.id}`
+    setChatId(id)
+    let unsub: () => void
+
+    const setup = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, getDocs } = await import('firebase/firestore')
-        const snap = await getDocs(query(
-          collection(db, 'platform_requests'),
-          where('investorId', '==', user.id),
-        ))
-        if (!snap.empty) {
-          setRequest({ id: snap.docs[0].id, ...snap.docs[0].data() } as PlatformRequest)
+        const {
+          doc, getDoc, setDoc, collection, query,
+          orderBy, onSnapshot, serverTimestamp, updateDoc,
+        } = await import('firebase/firestore')
+
+        const chatRef = doc(db, 'platform_chats', id)
+        const snap    = await getDoc(chatRef)
+        if (!snap.exists()) {
+          await setDoc(chatRef, {
+            investorId:    user.id,
+            investorName:  `${user.firstName} ${user.lastName}`,
+            investorEmail: user.email,
+            lastMessage:   '',
+            lastMessageAt: serverTimestamp(),
+            unreadAdmin:   0,
+            unreadInvestor: 0,
+            status:        'OPEN',
+            createdAt:     serverTimestamp(),
+          })
         }
-      } catch (e) { console.error(e) }
-      setLoading(false)
-    }
-    load()
-  }, [user?.id])
+        await updateDoc(chatRef, { unreadInvestor: 0 }).catch(() => {})
 
-  // Subscribe to chat messages if request is accepted and has a chatId
-  useEffect(() => {
-    if (!request?.chatId) return
-    let unsub: () => void
-    const sub = async () => {
-      const { db } = await import('@/lib/firebase')
-      const { collection, query, orderBy, onSnapshot } = await import('firebase/firestore')
-      const q = query(
-        collection(db, 'chats', request.chatId!, 'messages'),
-        orderBy('createdAt', 'asc'),
-      )
-      unsub = onSnapshot(q, snap => {
-        setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Message))
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-      })
-    }
-    sub()
-    return () => unsub?.()
-  }, [request?.chatId])
-
-  // Mark admin messages as read
-  useEffect(() => {
-    if (!request?.chatId || !user?.id) return
-    const mark = async () => {
-      const { db } = await import('@/lib/firebase')
-      const { doc, updateDoc } = await import('firebase/firestore')
-      await updateDoc(doc(db, 'chats', request.chatId!), { unreadInvestor: 0 }).catch(() => {})
-    }
-    mark()
-  }, [messages.length, request?.chatId, user?.id])
-
-  const handleSubmit = async () => {
-    if (!user || !pitch.trim()) { toast.error('Please describe what you want to work on'); return }
-    setSubmitting(true)
-    try {
-      const { db } = await import('@/lib/firebase')
-      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
-      const ref = await addDoc(collection(db, 'platform_requests'), {
-        investorId:    user.id,
-        investorName:  `${user.firstName} ${user.lastName}`,
-        investorEmail: user.email,
-        message:       pitch.trim(),
-        status:        'PENDING',
-        createdAt:     serverTimestamp(),
-      })
-      // Notify admin via notifications
-      const adminQ = await import('firebase/firestore').then(m =>
-        m.getDocs(m.query(m.collection(db, 'users'), m.where('role', '==', 'SUPER_ADMIN')))
-      )
-      for (const adminDoc of adminQ.docs) {
-        await addDoc(collection(db, 'notifications'), {
-          userId:    adminDoc.id,
-          title:     'New Platform Partnership Request',
-          message:   `${user.firstName} ${user.lastName} wants to work directly with the platform.`,
-          type:      'INFO',
-          read:      false,
-          createdAt: serverTimestamp(),
+        const q = query(
+          collection(db, 'platform_chats', id, 'messages'),
+          orderBy('createdAt', 'asc'),
+        )
+        unsub = onSnapshot(q, (s) => {
+          setMessages(s.docs.map(d => ({ id: d.id, ...d.data() }) as PlatformMessage))
+          setLoading(false)
+          updateDoc(chatRef, { unreadInvestor: 0 }).catch(() => {})
         })
+      } catch (e) {
+        console.error('[PlatformChat]', e)
+        setLoading(false)
       }
-      setRequest({ id: ref.id, investorId: user.id, investorName: `${user.firstName} ${user.lastName}`, investorEmail: user.email, message: pitch.trim(), status: 'PENDING', createdAt: new Date() })
-      toast.success('Request sent! The platform owner will review it.')
-    } catch (e) {
-      console.error(e)
-      toast.error('Failed to send request')
     }
-    setSubmitting(false)
-  }
 
-  const handleSendMessage = async () => {
-    if (!user || !request?.chatId || !msgText.trim()) return
+    setup()
+    return () => { unsub?.() }
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const handleSend = async (msg = text.trim()) => {
+    if (!msg || !chatId || !user || sending) return
+    setText('')
     setSending(true)
     try {
       const { db } = await import('@/lib/firebase')
-      const { collection, addDoc, doc, updateDoc, serverTimestamp } = await import('firebase/firestore')
-      const text = msgText.trim()
-      setMsgText('')
-      await addDoc(collection(db, 'chats', request.chatId, 'messages'), {
+      const { collection, addDoc, doc, updateDoc, serverTimestamp, increment } = await import('firebase/firestore')
+      await addDoc(collection(db, 'platform_chats', chatId, 'messages'), {
         senderId:   user.id,
         senderName: `${user.firstName} ${user.lastName}`,
-        text,
+        senderRole: 'INVESTOR',
+        text:       msg,
         createdAt:  serverTimestamp(),
       })
-      await updateDoc(doc(db, 'chats', request.chatId), {
-        lastMessage:   text,
+      await updateDoc(doc(db, 'platform_chats', chatId), {
+        lastMessage:   msg,
         lastMessageAt: serverTimestamp(),
-        unreadAdmin:   1,
+        unreadAdmin:   increment(1),
         unreadInvestor: 0,
       })
-    } catch (e) {
+    } catch {
       toast.error('Failed to send message')
     }
     setSending(false)
   }
 
-  const handleConfirmDeal = async () => {
-    if (!user || !request?.deal || !request.id) return
-    const { amount } = request.deal
-    setConfirming(true)
-    try {
-      const { db } = await import('@/lib/firebase')
-      const { doc, getDoc, updateDoc, addDoc, increment, setDoc, collection, serverTimestamp } = await import('firebase/firestore')
-
-      // Check wallet balance
-      const flagsSnap = await getDoc(doc(db, 'user_flags', user.id))
-      const balance = flagsSnap.exists() ? (flagsSnap.data().coinBalance ?? 0) : 0
-      if (balance < amount) {
-        toast.error(`Insufficient balance. You have $${balance.toLocaleString()}.`)
-        setConfirming(false)
-        return
-      }
-
-      // Deduct wallet
-      await updateDoc(doc(db, 'user_flags', user.id), { coinBalance: increment(-amount) })
-
-      // Update request — deal confirmed
-      await updateDoc(doc(db, 'platform_requests', request.id), {
-        'deal.status': 'CONFIRMED',
-        confirmedAt:   serverTimestamp(),
-      })
-
-      // Award Partner badge
-      await addDoc(collection(db, 'badges'), {
-        userId:       user.id,
-        userName:     `${user.firstName} ${user.lastName}`,
-        type:         'PLATFORM_PARTNER',
-        label:        'Platform Partner',
-        businessName: 'Platform Direct',
-        amount,
-        earnedAt:     serverTimestamp(),
-      })
-
-      // Award points
-      await setDoc(doc(db, 'user_flags', user.id), { points: increment(20) }, { merge: true })
-
-      // Log ledger
-      await addDoc(collection(db, 'coin_ledger'), {
-        userId:      user.id,
-        type:        'PLATFORM_DEAL',
-        amount:      -amount,
-        description: 'Platform direct deal confirmed',
-        createdAt:   serverTimestamp(),
-      })
-
-      // Notify admin
-      const adminQ = await import('firebase/firestore').then(m =>
-        m.getDocs(m.query(m.collection(db, 'users'), m.where('role', '==', 'SUPER_ADMIN')))
-      )
-      for (const adminDoc of adminQ.docs) {
-        await addDoc(collection(db, 'notifications'), {
-          userId:    adminDoc.id,
-          title:     'Deal Confirmed by Investor',
-          message:   `${user.firstName} ${user.lastName} confirmed a $${amount.toLocaleString()} platform deal.`,
-          type:      'SUCCESS',
-          read:      false,
-          createdAt: serverTimestamp(),
-        })
-      }
-
-      setRequest(prev => prev ? { ...prev, deal: { ...prev.deal!, status: 'CONFIRMED' } } : prev)
-      toast.success(`Deal confirmed! You are now a Platform Partner. +20 points earned!`)
-    } catch (e) {
-      console.error(e)
-      toast.error('Failed to confirm deal')
-    }
-    setConfirming(false)
-  }
-
-  const STATUS_CFG = {
-    PENDING:  { icon: Clock,         color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',   label: 'Under Review' },
-    ACCEPTED: { icon: CheckCircle2,  color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: 'Accepted' },
-    REJECTED: { icon: XCircle,       color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',       label: 'Declined' },
-  }
-
-  if (loading) {
-    return (
-      <DashboardLayout role="INVESTOR" title="Work with Platform" subtitle="Partner directly with the platform owner">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
-    <DashboardLayout role="INVESTOR" title="Work with Platform" subtitle="Partner directly with the platform owner">
-      <div className="max-w-2xl space-y-6">
+    <DashboardLayout role="INVESTOR">
+      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
 
-        {/* Hero */}
-        <div className="gradient-border p-6 flex items-start gap-5"
-          style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)' }}>
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400/20 to-orange-600/20 flex items-center justify-center flex-shrink-0">
-            <Crown className="w-7 h-7 text-amber-400" />
-          </div>
+        {/* ── Left info panel ── */}
+        <div className="hidden lg:flex w-80 flex-shrink-0 flex-col border-r border-border bg-obsidian-950 p-6 gap-6">
           <div>
-            <h3 className="font-display font-bold text-lg">Direct Partnership</h3>
-            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-              Work directly with the platform owner. Send your pitch, discuss terms over chat, and confirm a custom deal with exclusive <strong className="text-amber-400">Platform Partner</strong> status.
+            <div className="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-4">
+              <BrainCircuit className="w-6 h-6 text-brand-400" />
+            </div>
+            <h2 className="font-display font-bold text-lg">Work with Platform</h2>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              Direct line to the InvestorPanel admin team. Ask anything about investments, fees, or strategy.
             </p>
           </div>
+
+          <div className="glass-card rounded-xl p-4 flex items-center gap-3">
+            <div className="relative flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 text-violet-400" />
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-obsidian-900 bg-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Platform Admin</p>
+              <p className="text-xs text-amber-400">Usually replies within 24h</p>
+            </div>
+          </div>
+
+          {messages.length === 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Quick starts</p>
+              {STARTER_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => handleSend(p)}
+                  className="w-full text-left text-xs p-3 rounded-xl border border-border hover:border-brand-500/30 hover:bg-brand-500/5 text-muted-foreground hover:text-foreground transition-all"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* No request yet — show submit form */}
-        {!request && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="glass-card rounded-2xl p-6 space-y-4">
-            <h4 className="font-semibold">Send Your Pitch</h4>
-            <textarea
-              value={pitch}
-              onChange={e => setPitch(e.target.value)}
-              rows={5}
-              placeholder="Describe your investment goals, what you're looking for, the amount you have in mind, and why you want to work directly with the platform..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-brand-500/40 resize-none"
-            />
-            <button onClick={handleSubmit} disabled={submitting || !pitch.trim()}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-obsidian-950 text-sm font-semibold transition-all disabled:opacity-60">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Send Request
-            </button>
-          </motion.div>
-        )}
-
-        {/* Request exists — show status */}
-        {request && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            {/* Status card */}
-            <div className="glass-card rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold">Your Request</p>
-                {(() => {
-                  const s = STATUS_CFG[request.status]
-                  return (
-                    <span className={cn('flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border', s.color, s.bg)}>
-                      <s.icon className="w-3.5 h-3.5" />{s.label}
-                    </span>
-                  )
-                })()}
+        {/* ── Chat area ── */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div className="p-4 border-b border-border flex items-center gap-3 bg-obsidian-950 flex-shrink-0">
+            <div className="relative">
+              <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 text-violet-400" />
               </div>
-              <p className="text-sm text-muted-foreground italic">"{request.message}"</p>
-              {request.adminNote && (
-                <div className="mt-3 pt-3 border-t border-border/50">
-                  <p className="text-xs text-muted-foreground mb-1">Reply from admin:</p>
-                  <p className="text-sm text-brand-300">"{request.adminNote}"</p>
-                </div>
-              )}
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-obsidian-900 bg-amber-400" />
             </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm">Platform Support</p>
+              <p className="text-xs text-muted-foreground">InvestorPanel Admin Team</p>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20">
+              <Sparkles className="w-3 h-3 text-brand-400" />
+              <span className="text-xs text-brand-400 font-medium">Secure Channel</span>
+            </div>
+          </div>
 
-            {/* Deal offer */}
-            {request.deal && (
-              <div className={cn(
-                'glass-card rounded-2xl p-5 border',
-                request.deal.status === 'CONFIRMED'
-                  ? 'border-emerald-500/30 bg-emerald-500/5'
-                  : 'border-brand-500/30 bg-brand-500/5',
-              )}>
-                <div className="flex items-center gap-2 mb-4">
-                  <DollarSign className="w-4 h-4 text-brand-400" />
-                  <p className="font-semibold text-sm">
-                    {request.deal.status === 'CONFIRMED' ? 'Deal Confirmed' : 'Deal Offer from Platform'}
-                  </p>
-                  {request.deal.status === 'CONFIRMED' && (
-                    <span className="ml-auto text-xs text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Active
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Amount</p>
-                    <p className="font-bold font-mono text-brand-400">{fmt(request.deal.amount)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Expected ROI</p>
-                    <p className="font-bold font-mono text-emerald-400">{request.deal.expectedROI}%</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lock Period</p>
-                    <p className="font-bold font-mono text-foreground">{request.deal.lockPeriod}mo</p>
-                  </div>
-                </div>
-                {request.deal.status === 'PENDING_CONFIRM' && (
-                  <button onClick={handleConfirmDeal} disabled={confirming}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 text-sm font-bold transition-all disabled:opacity-60">
-                    {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                    Confirm Deal — funds deducted from wallet
-                  </button>
-                )}
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
               </div>
-            )}
-
-            {/* Chat — visible only when accepted */}
-            {request.status === 'ACCEPTED' && request.chatId && (
-              <div className="glass-card rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-3 px-5 py-3 border-b border-border">
-                  <MessageSquare className="w-4 h-4 text-brand-400" />
-                  <p className="font-semibold text-sm">Chat with Platform</p>
+            ) : messages.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center h-full gap-4 text-center p-8"
+              >
+                <div className="w-16 h-16 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+                  <MessageSquare className="w-7 h-7 text-brand-400" />
                 </div>
-
-                <div className="h-72 overflow-y-auto p-4 space-y-3">
-                  {messages.length === 0 && (
-                    <p className="text-center text-xs text-muted-foreground mt-8">No messages yet. Say hello!</p>
-                  )}
-                  {messages.map(m => {
-                    const isMine = m.senderId === user?.id
-                    return (
-                      <div key={m.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
-                        <div className={cn(
-                          'max-w-[75%] px-3 py-2 rounded-2xl text-sm',
-                          isMine
-                            ? 'bg-brand-500/20 text-foreground rounded-br-sm'
-                            : 'bg-obsidian-800 text-foreground rounded-bl-sm',
-                        )}>
-                          {!isMine && <p className="text-xs text-amber-400 font-semibold mb-0.5">{m.senderName}</p>}
-                          <p>{m.text}</p>
-                          <p className="text-xs text-muted-foreground/50 mt-1 text-right">{fmtTime(m.createdAt)}</p>
+                <div>
+                  <p className="font-semibold">Start the conversation</p>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                    Ask anything about the platform, investments, or how we can help you grow.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 w-full max-w-sm lg:hidden">
+                  {STARTER_PROMPTS.slice(0, 2).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => handleSend(p)}
+                      className="w-full text-left text-xs p-3 rounded-xl border border-border hover:border-brand-500/30 hover:bg-brand-500/5 text-muted-foreground hover:text-foreground transition-all"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                {messages.map((msg) => {
+                  const isMe = msg.senderRole === 'INVESTOR'
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn('flex', isMe ? 'justify-end' : 'justify-start')}
+                    >
+                      {!isMe && (
+                        <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
+                          <ShieldCheck className="w-3.5 h-3.5 text-violet-400" />
+                        </div>
+                      )}
+                      <div className={cn(
+                        'max-w-[72%] rounded-2xl px-4 py-2.5',
+                        isMe
+                          ? 'bg-brand-500 text-obsidian-950 rounded-br-sm'
+                          : 'bg-obsidian-800 text-foreground rounded-bl-sm border border-border',
+                      )}>
+                        {!isMe && (
+                          <p className="text-[10px] font-semibold text-violet-400 mb-1">Platform Admin</p>
+                        )}
+                        <p className="text-sm leading-relaxed">{msg.text}</p>
+                        <div className={cn('flex items-center gap-1 mt-1', isMe ? 'justify-end' : 'justify-start')}>
+                          <p className={cn('text-[10px]', isMe ? 'text-obsidian-950/60' : 'text-muted-foreground')}>
+                            {fmtTime(msg.createdAt)}
+                          </p>
+                          {isMe && <CheckCheck className="w-3 h-3 text-obsidian-950/60" />}
                         </div>
                       </div>
-                    )
-                  })}
-                  <div ref={bottomRef} />
-                </div>
-
-                <div className="flex gap-2 p-3 border-t border-border">
-                  <input
-                    value={msgText}
-                    onChange={e => setMsgText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    placeholder="Type a message…"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand-500/40"
-                  />
-                  <button onClick={handleSendMessage} disabled={sending || !msgText.trim()}
-                    className="w-9 h-9 rounded-xl bg-brand-500 hover:bg-brand-400 text-obsidian-950 flex items-center justify-center transition-all disabled:opacity-50">
-                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+                    </motion.div>
+                  )
+                })}
+                <AnimatePresence>
+                  {sending && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex justify-end"
+                    >
+                      <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl rounded-br-sm bg-brand-500/30">
+                        <span className="text-xs text-brand-300">Sending…</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div ref={bottomRef} />
+              </>
             )}
+          </div>
 
-            {/* Rejected — allow re-apply */}
-            {request.status === 'REJECTED' && (
-              <div className="text-center pt-2">
-                <p className="text-sm text-muted-foreground mb-3">Your request was declined. You can submit a new one.</p>
-                <button onClick={() => setRequest(null)}
-                  className="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm border border-border transition-all">
-                  Submit New Request
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
+          {/* Input */}
+          <div className="p-4 border-t border-border bg-obsidian-950 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <input
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+                }}
+                placeholder="Type your message to the platform team…"
+                className="flex-1 bg-obsidian-800 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500/50 transition-colors"
+              />
+              <button
+                onClick={() => handleSend()}
+                disabled={!text.trim() || sending}
+                className="w-11 h-11 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:opacity-40 flex items-center justify-center transition-all flex-shrink-0"
+              >
+                {sending
+                  ? <Loader2 className="w-4 h-4 text-obsidian-950 animate-spin" />
+                  : <Send className="w-4 h-4 text-obsidian-950" />
+                }
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   )

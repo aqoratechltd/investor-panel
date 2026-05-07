@@ -60,29 +60,48 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const API = process.env.NEXT_PUBLIC_API_URL
     const load = async () => {
       try {
-        const [bizRes, appRes] = await Promise.all([
-          fetch(`${API}/admin/businesses`),
-          fetch(`${API}/admin/seller-applications`),
+        const { db } = await import('@/lib/firebase')
+        const { collection, getDocs, query, where } = await import('firebase/firestore')
+
+        const [bizSnap, appSnap, investorSnap] = await Promise.all([
+          getDocs(collection(db, 'businesses')).catch(() => null),
+          getDocs(collection(db, 'seller_applications')).catch(() => null),
+          getDocs(query(collection(db, 'users'), where('role', '==', 'INVESTOR'))).catch(() => null),
         ])
-        const bizData = await bizRes.json()
-        const appData = await appRes.json()
-        const allBiz: any[] = Array.isArray(bizData) ? bizData : (bizData?.data ?? [])
-        const allApps: any[] = Array.isArray(appData) ? appData : (appData?.data ?? [])
+
+        const allBiz: any[] = bizSnap ? bizSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []
+        const allApps: any[] = appSnap ? appSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []
 
         setStats({
           totalSellers: allApps.filter((a: any) => a.status === 'APPROVED').length,
           pendingSellerApps: allApps.filter((a: any) => a.status === 'PENDING').length,
           totalBusinesses: allBiz.length,
           pendingBusinesses: allBiz.filter((b: any) => b.status === 'PENDING').length,
-          approvedBusinesses: allBiz.filter((b: any) => b.status === 'APPROVED').length,
-          totalInvestors: 0,
+          approvedBusinesses: allBiz.filter((b: any) => b.status === 'PUBLISHED' || b.status === 'APPROVED').length,
+          totalInvestors: investorSnap ? investorSnap.size : 0,
         })
 
-        setPendingBusinesses(allBiz.filter((b: any) => b.status === 'PENDING').slice(0, 5))
-        setPendingSellerApps(allApps.filter((a: any) => a.status === 'PENDING').slice(0, 5))
+        setPendingBusinesses(
+          allBiz.filter((b: any) => b.status === 'PENDING').slice(0, 5).map((b: any) => ({
+            id: b.id,
+            name: b.name || b.companyName || '—',
+            sellerName: b.sellerName || '—',
+            category: b.category || b.industry || '—',
+            askingAmount: b.askingAmount || 0,
+            createdAt: b.createdAt,
+          }))
+        )
+        setPendingSellerApps(
+          allApps.filter((a: any) => a.status === 'PENDING').slice(0, 5).map((a: any) => ({
+            id: a.id,
+            fullName: a.fullName || '—',
+            companyName: a.companyName || '—',
+            email: a.email || '—',
+            submittedAt: a.submittedAt,
+          }))
+        )
       } catch (e) { console.error(e) }
       setLoading(false)
     }
