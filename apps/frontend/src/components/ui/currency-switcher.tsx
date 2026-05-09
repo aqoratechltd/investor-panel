@@ -81,7 +81,7 @@ export function CurrencySwitcher({ compact = false }: { compact?: boolean }) {
                 {(['GBP', 'EUR', 'PKR'] as Currency[]).map((c) => (
                   <span key={c} className="text-[10px] font-mono text-muted-foreground">
                     <span className="text-foreground/80">{c}</span>{' '}
-                    {{ GBP: '0.792', EUR: '0.921', PKR: '278.5' }[c]}
+                    {({ GBP: '0.792', EUR: '0.921', PKR: '278.5' } as Record<string, string>)[c]}
                   </span>
                 ))}
               </div>

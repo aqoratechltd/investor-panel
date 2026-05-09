@@ -6,6 +6,7 @@ import { MessageSquare, Send, Search, Phone } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Button } from '@/components/ui/button'
 import { useSellerStore } from '@/stores/seller.store'
+import { useAuthStore } from '@/stores/auth.store'
 
 const STATUS_COLOR: Record<string, string> = {
   ONLINE: 'bg-emerald-400',
@@ -23,6 +24,7 @@ const AVATAR_COLORS = [
 
 export default function SellerTeamPage() {
   const { contacts, messages, sendMessage, markContactRead } = useSellerStore()
+  const { user } = useAuthStore()
   const [selectedId, setSelectedId] = useState(contacts[0]?.id ?? '')
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
@@ -42,7 +44,7 @@ export default function SellerTeamPage() {
 
   const handleSend = () => {
     if (!message.trim() || !selectedId) return
-    sendMessage(selectedId, message.trim())
+    sendMessage(selectedId, message.trim(), user ? `${user.firstName} ${user.lastName}` : 'User')
     setMessage('')
   }
 

@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 interface Investment {
   id: string
   businessName: string
+  businessId?: string
   investorId?: string
   investorName: string
   investorEmail: string

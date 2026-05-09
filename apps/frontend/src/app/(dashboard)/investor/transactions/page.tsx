@@ -43,7 +43,7 @@ export default function InvestorTransactionsPage() {
     const load = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, getDocs } = await import('firebase/firestore')
+        const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore')
 
         const txSnap = await getDocs(query(collection(db, 'transactions'), where('investorId', '==', user.id)))
 

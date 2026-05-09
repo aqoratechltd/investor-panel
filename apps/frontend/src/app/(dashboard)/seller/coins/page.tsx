@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn, formatNumber, getPnLColor } from '@/lib/utils'
 import { useSellerStore, type SellerCoin } from '@/stores/seller.store'
+import { useAuthStore } from '@/stores/auth.store'
 import toast from 'react-hot-toast'
 
 function CoinModal({ coin, onClose, onSave }: { coin?: SellerCoin; onClose: () => void; onSave: (data: any) => void }) {
@@ -96,6 +97,7 @@ function CoinModal({ coin, onClose, onSave }: { coin?: SellerCoin; onClose: () =
 
 export default function SellerCoinsPage() {
   const { coins, createCoin, updateCoin, deleteCoin, toggleCoinActive } = useSellerStore()
+  const { user } = useAuthStore()
   const [showCreate, setShowCreate] = useState(false)
   const [editCoin, setEditCoin] = useState<SellerCoin | null>(null)
 
@@ -164,7 +166,7 @@ export default function SellerCoinsPage() {
       </div>
 
       <AnimatePresence>
-        {showCreate && <CoinModal onClose={() => setShowCreate(false)} onSave={(data) => { createCoin(data); toast.success(`${data.name} created!`) }} />}
+        {showCreate && <CoinModal onClose={() => setShowCreate(false)} onSave={(data) => { createCoin(user?.id ?? '', data); toast.success(`${data.name} created!`) }} />}
         {editCoin && <CoinModal coin={editCoin} onClose={() => setEditCoin(null)} onSave={(data) => { updateCoin(editCoin.id, data); toast.success('Coin updated') }} />}
       </AnimatePresence>
     </DashboardLayout>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useSellerStore, type Task } from '@/stores/seller.store'
+import { useAuthStore } from '@/stores/auth.store'
 import toast from 'react-hot-toast'
 
 type Priority = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -107,6 +108,7 @@ function AddTaskModal({ onClose, onCreate }: { onClose: () => void; onCreate: (t
 
 export default function SellerTasksPage() {
   const { tasks, updateTaskStatus, deleteTask, createTask } = useSellerStore()
+  const { user } = useAuthStore()
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | Priority>('ALL')
   const [showAdd, setShowAdd] = useState(false)
 
@@ -200,7 +202,7 @@ export default function SellerTasksPage() {
       </div>
 
       <AnimatePresence>
-        {showAdd && <AddTaskModal onClose={() => setShowAdd(false)} onCreate={(task) => { createTask(task); toast.success('Task created') }} />}
+        {showAdd && <AddTaskModal onClose={() => setShowAdd(false)} onCreate={(task) => { createTask(user?.id ?? '', task); toast.success('Task created') }} />}
       </AnimatePresence>
     </DashboardLayout>
   )

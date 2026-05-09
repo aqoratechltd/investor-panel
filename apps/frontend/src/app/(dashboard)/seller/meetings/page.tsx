@@ -7,6 +7,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSellerStore, type Meeting } from '@/stores/seller.store'
+import { useAuthStore } from '@/stores/auth.store'
 import toast from 'react-hot-toast'
 
 const TYPE_ICONS: Record<string, any> = { VIDEO: Video, PHONE: Phone, IN_PERSON: MapPin }
@@ -84,6 +85,7 @@ function ScheduleModal({ onClose, onCreate }: { onClose: () => void; onCreate: (
 
 export default function SellerMeetingsPage() {
   const { meetings, createMeeting, completeMeeting, cancelMeeting } = useSellerStore()
+  const { user } = useAuthStore()
   const [tab, setTab] = useState<'upcoming' | 'completed'>('upcoming')
   const [showSchedule, setShowSchedule] = useState(false)
 
@@ -211,7 +213,7 @@ export default function SellerMeetingsPage() {
       </div>
 
       <AnimatePresence>
-        {showSchedule && <ScheduleModal onClose={() => setShowSchedule(false)} onCreate={(m) => { createMeeting(m); toast.success('Meeting scheduled') }} />}
+        {showSchedule && <ScheduleModal onClose={() => setShowSchedule(false)} onCreate={(m) => { createMeeting(user?.id ?? '', m); toast.success('Meeting scheduled') }} />}
       </AnimatePresence>
     </DashboardLayout>
   )
