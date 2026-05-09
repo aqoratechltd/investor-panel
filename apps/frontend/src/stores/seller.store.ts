@@ -168,35 +168,15 @@ export const useSellerStore = create<SellerState>()(
         if (!userId) return
         try {
           const { db } = await import('@/lib/firebase')
-          const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore')
+          const { collection, query, where, getDocs } = await import('firebase/firestore')
 
           const [
             invSnap, wdSnap, taskSnap, meetingSnap, coinSnap,
           ] = await Promise.all([
-            // All investments where sellerId = this seller (gives investor list)
-            getDocs(query(
-              collection(db, 'investments'),
-              where('sellerId', '==', userId),
-              orderBy('createdAt', 'desc'),
-            )).catch(() => null),
-            // All withdrawals where sellerId = this seller
-            getDocs(query(
-              collection(db, 'withdrawals'),
-              where('sellerId', '==', userId),
-              orderBy('requestedAt', 'desc'),
-            )).catch(() => null),
-            // Tasks
-            getDocs(query(
-              collection(db, 'tasks'),
-              where('sellerId', '==', userId),
-              orderBy('createdAt', 'desc'),
-            )).catch(() => null),
-            // Meetings
-            getDocs(query(
-              collection(db, 'meetings'),
-              where('sellerId', '==', userId),
-              orderBy('date', 'desc'),
-            )).catch(() => null),
+            getDocs(query(collection(db, 'investments'), where('sellerId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'withdrawals'),  where('sellerId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'tasks'),        where('sellerId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'meetings'),     where('sellerId', '==', userId))).catch(() => null),
             // Seller coins
             getDocs(query(
               collection(db, 'seller_coins'),

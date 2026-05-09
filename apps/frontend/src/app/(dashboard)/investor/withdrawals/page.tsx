@@ -49,14 +49,10 @@ export default function InvestorWithdrawalsPage() {
     const load = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, orderBy, getDocs, getDoc, doc } = await import('firebase/firestore')
+        const { collection, query, where, getDocs, getDoc, doc } = await import('firebase/firestore')
 
         const [wdSnap, flagSnap] = await Promise.all([
-          getDocs(query(
-            collection(db, 'withdrawals'),
-            where('investorId', '==', user.id),
-            orderBy('requestedAt', 'desc'),
-          )),
+          getDocs(query(collection(db, 'withdrawals'), where('investorId', '==', user.id))),
           getDoc(doc(db, 'user_flags', user.id)),
         ])
 
@@ -104,8 +100,6 @@ export default function InvestorWithdrawalsPage() {
         const invSnap = await getDocs(q2(
           collection(db, 'investments'),
           where('investorId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-          limit(1),
         ))
         if (!invSnap.empty) {
           const inv = invSnap.docs[0].data()

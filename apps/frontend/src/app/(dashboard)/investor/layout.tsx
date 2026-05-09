@@ -5,7 +5,17 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { useInvestorStore } from '@/stores/investor.store'
 
-const ALLOWED_PATHS = ['/investor/marketplace', '/investor/chat', '/investor/onboarding']
+const ALLOWED_PATHS = [
+  '/investor/marketplace',
+  '/investor/chat',
+  '/investor/onboarding',
+  '/investor/platform',
+  '/investor/coins',
+  '/investor/market',
+  '/investor/transactions',
+  '/investor/withdrawals',
+  '/investor',
+]
 
 export default function InvestorLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuthStore()

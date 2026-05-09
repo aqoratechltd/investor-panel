@@ -1,22 +1,22 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '@/stores/auth.store'
 import {
-  User, Building2, BarChart3, FileSpreadsheet, DollarSign,
-  ChevronRight, ChevronLeft, CheckCircle2, Upload, X, AlertCircle,
+  User, Building2, BarChart3, DollarSign,
+  ChevronRight, ChevronLeft, CheckCircle2, AlertCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
+import { addCommas, stripCommas, pkrWords } from '@/lib/pkr'
 
 const STEPS = [
-  { icon: User,            label: 'Personal Info' },
-  { icon: Building2,       label: 'Business Details' },
-  { icon: BarChart3,       label: 'Financials' },
-  { icon: DollarSign,      label: 'Investment Terms' },
-  { icon: FileSpreadsheet, label: 'Documents' },
+  { icon: User,      label: 'Personal Info' },
+  { icon: Building2, label: 'Business Details' },
+  { icon: BarChart3, label: 'Financials' },
+  { icon: DollarSign,label: 'Investment Terms' },
 ]
 
 const COMPANY_SIZES    = ['1–10', '11–50', '51–200', '201–500', '500+']
@@ -24,21 +24,24 @@ const INDUSTRIES       = ['Technology','Real Estate','Healthcare','Finance','Foo
 const INVESTMENT_TYPES = ['Equity','Debt','Revenue Share','Convertible Note']
 const RISK_LEVELS      = ['Low','Medium','High']
 
-// ── Extracted outside to avoid remount on every keystroke ──────────────────
-function NumField({ label, field, prefix = '$', suffix = '', value, onChange, hint }: {
+function NumField({ label, field, prefix = '₨', suffix = '', value, onChange, hint }: {
   label: string; field: string; prefix?: string; suffix?: string
   value: string; onChange: (field: string, val: string) => void; hint?: string
 }) {
+  const display = value ? addCommas(value) : ''
+  const numeric = parseFloat(stripCommas(value)) || 0
+  const words   = !suffix && numeric > 0 ? pkrWords(numeric) : ''
+
   return (
     <div>
       <label className="text-sm font-medium text-muted-foreground mb-1.5 block">{label} *</label>
       <div className="relative">
         {prefix && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>}
         <input
-          type="number" min="0" value={value}
-          onChange={e => onChange(field, e.target.value)}
+          type="text" inputMode="numeric" value={display}
+          onChange={e => onChange(field, stripCommas(e.target.value))}
           className={cn(
-            'w-full bg-obsidian-800 border border-border rounded-xl py-3 text-sm focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20',
+            'w-full bg-obsidian-800 border border-border rounded-xl py-3 text-sm focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20 font-mono',
             prefix ? 'pl-8' : 'pl-4',
             suffix ? 'pr-12' : 'pr-4',
           )}
@@ -46,6 +49,7 @@ function NumField({ label, field, prefix = '$', suffix = '', value, onChange, hi
         />
         {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">{suffix}</span>}
       </div>
+      {words && <p className="text-xs text-muted-foreground/70 mt-1">{words}</p>}
       {hint && <p className="text-xs text-brand-400 mt-1">{hint}</p>}
     </div>
   )
@@ -72,21 +76,15 @@ export default function SellerOnboarding() {
   const { user } = useAuthStore()
   const [step, setStep]     = useState(0)
   const [saving, setSaving] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [plFile, setPlFile] = useState<File | null>(null)
 
   const [form, setForm] = useState({
-    // Step 0
     fullName: user ? `${user.firstName} ${user.lastName}` : '',
     email: user?.email || '',
     phone: '',
-    // Step 1
     companyName: '', businessDescription: '', industry: '',
     website: '', companySize: '', founded: '', country: 'Pakistan',
-    // Step 2
     ttmRevenue: '', ttmProfit: '', lastMonthRevenue: '', lastMonthProfit: '',
     customers: '', annualRecurringRevenue: '', annualGrowthRate: '', churnRate: '',
-    // Step 3 — Investment Terms
     askingAmount: '', minInvestment: '', equityOffered: '',
     expectedROI: '', lockPeriod: '', riskLevel: '', investmentType: '', highlights: '',
   })
@@ -99,26 +97,11 @@ export default function SellerOnboarding() {
     if (step === 1) return form.companyName.trim() && form.businessDescription.trim() && form.industry && form.companySize && form.founded && form.country
     if (step === 2) return form.ttmRevenue && form.ttmProfit && form.lastMonthRevenue && form.lastMonthProfit && form.customers && form.annualRecurringRevenue && form.annualGrowthRate && form.churnRate
     if (step === 3) return n('askingAmount') > 0 && n('minInvestment') > 0 && n('minInvestment') <= n('askingAmount') && n('equityOffered') > 0 && n('equityOffered') <= 100 && n('expectedROI') > 0 && n('lockPeriod') >= 1 && form.riskLevel && form.investmentType
-    return !!plFile
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    if (!['xlsx', 'xls', 'csv'].includes(ext || '')) {
-      toast.error('Please upload an Excel (.xlsx, .xls) or CSV file')
-      return
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File must be under 10MB')
-      return
-    }
-    setPlFile(file)
+    return true
   }
 
   const handleSubmit = async () => {
-    if (!plFile || !user) return
+    if (!user) return
     setSaving(true)
     toast.loading('Submitting your application...', { id: 'seller-app' })
     try {
@@ -126,19 +109,7 @@ export default function SellerOnboarding() {
       if (!isFirebaseConfigured()) throw new Error('Firebase not configured')
       const { doc, setDoc } = await import('firebase/firestore')
 
-      // Upload P&L file to Firebase Storage
-      const { storage } = await import('@/lib/firebase')
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage')
-      const storageRef = ref(storage, `pl_statements/${user.id}/${Date.now()}_${plFile.name}`)
-      await uploadBytes(storageRef, plFile)
-      const plStatementUrl = await getDownloadURL(storageRef)
-
       const now = new Date()
-      const lockedUntil = new Date(now)
-      lockedUntil.setMonth(lockedUntil.getMonth() + 1)
-
-      // Direct-to-Market model: seller applications are auto-approved on submission.
-      // TO RE-ENABLE: Restore approval gate by setting status: 'PENDING' and routing to /seller/pending
       await setDoc(doc(db, 'seller_applications', user.id), {
         uid: user.id,
         fullName: form.fullName.trim(),
@@ -151,16 +122,14 @@ export default function SellerOnboarding() {
         companySize: form.companySize,
         founded: parseInt(form.founded) || null,
         country: form.country,
-        // Financials
-        ttmRevenue:            n('ttmRevenue'),
-        ttmProfit:             n('ttmProfit'),
-        lastMonthRevenue:      n('lastMonthRevenue'),
-        lastMonthProfit:       n('lastMonthProfit'),
-        customers:             parseInt(form.customers) || 0,
+        ttmRevenue:             n('ttmRevenue'),
+        ttmProfit:              n('ttmProfit'),
+        lastMonthRevenue:       n('lastMonthRevenue'),
+        lastMonthProfit:        n('lastMonthProfit'),
+        customers:              parseInt(form.customers) || 0,
         annualRecurringRevenue: n('annualRecurringRevenue'),
-        annualGrowthRate:      n('annualGrowthRate'),
-        churnRate:             n('churnRate'),
-        // Investment Terms
+        annualGrowthRate:       n('annualGrowthRate'),
+        churnRate:              n('churnRate'),
         askingAmount:    n('askingAmount'),
         minInvestment:   n('minInvestment'),
         equityOffered:   n('equityOffered'),
@@ -169,10 +138,6 @@ export default function SellerOnboarding() {
         riskLevel:       form.riskLevel,
         investmentType:  form.investmentType,
         highlights:      form.highlights.split('\n').map(h => h.trim()).filter(Boolean),
-        // Meta
-        plStatementUrl,
-        plStatementName: plFile.name,
-        // Direct-to-Market: auto-approve, no admin review queue
         status: 'APPROVED',
         submittedAt: now.toISOString(),
         reviewedAt: now.toISOString(),
@@ -180,7 +145,7 @@ export default function SellerOnboarding() {
       })
 
       toast.success('Seller profile created! You can now list your business.', { id: 'seller-app' })
-      router.push('/seller')
+      router.push('/seller/businesses')
     } catch (err: any) {
       toast.error(err?.message || 'Submission failed. Please try again.', { id: 'seller-app' })
     } finally {
@@ -198,7 +163,7 @@ export default function SellerOnboarding() {
             <Building2 className="w-3.5 h-3.5" /> Seller Application — InvestorPanel
           </div>
           <h1 className="text-3xl font-bold font-display mb-2">List your <span className="text-brand-400">business</span></h1>
-          <p className="text-muted-foreground text-sm">Complete all fields accurately. Your application will be reviewed within 48 hours.</p>
+          <p className="text-muted-foreground text-sm">Complete all fields accurately.</p>
         </motion.div>
 
         {/* Steps */}
@@ -228,13 +193,8 @@ export default function SellerOnboarding() {
           {step === 0 && (
             <div className="space-y-5">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center">
-                  <User className="w-5 h-5 text-brand-400" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-lg">Personal Information</h2>
-                  <p className="text-sm text-muted-foreground">Your contact details for our records</p>
-                </div>
+                <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center"><User className="w-5 h-5 text-brand-400" /></div>
+                <div><h2 className="font-semibold text-lg">Personal Information</h2><p className="text-sm text-muted-foreground">Your contact details for our records</p></div>
               </div>
               <TextField label="Full Name"     field="fullName" placeholder="Your full legal name"   value={form.fullName} onChange={setF} />
               <TextField label="Email Address" field="email"    placeholder="you@company.com" type="email" value={form.email} onChange={setF} />
@@ -246,13 +206,8 @@ export default function SellerOnboarding() {
           {step === 1 && (
             <div className="space-y-5">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-cyan-400" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-lg">Business Details</h2>
-                  <p className="text-sm text-muted-foreground">Tell investors about your company</p>
-                </div>
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-cyan-400" /></div>
+                <div><h2 className="font-semibold text-lg">Business Details</h2><p className="text-sm text-muted-foreground">Tell investors about your company</p></div>
               </div>
 
               <TextField label="Company Name" field="companyName" placeholder="Acme Pvt Ltd" value={form.companyName} onChange={setF} />
@@ -283,9 +238,7 @@ export default function SellerOnboarding() {
                     <button key={s} type="button" onClick={() => setF('companySize', s)}
                       className={cn(
                         'px-4 py-2 rounded-xl text-sm font-medium border transition-all',
-                        form.companySize === s
-                          ? 'bg-brand-500/20 border-brand-500/50 text-brand-300'
-                          : 'bg-obsidian-800 border-border text-muted-foreground hover:border-brand-500/30',
+                        form.companySize === s ? 'bg-brand-500/20 border-brand-500/50 text-brand-300' : 'bg-obsidian-800 border-border text-muted-foreground hover:border-brand-500/30',
                       )}>
                       {s} employees
                     </button>
@@ -309,13 +262,8 @@ export default function SellerOnboarding() {
           {step === 2 && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-lg">Financial Metrics</h2>
-                  <p className="text-sm text-muted-foreground">All fields are required. Be accurate — we verify.</p>
-                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center"><BarChart3 className="w-5 h-5 text-emerald-400" /></div>
+                <div><h2 className="font-semibold text-lg">Financial Metrics</h2><p className="text-sm text-muted-foreground">All fields are required. Be accurate — we verify.</p></div>
               </div>
 
               <div className="p-3 rounded-xl bg-amber-500/8 border border-amber-500/20 flex items-start gap-2">
@@ -340,26 +288,16 @@ export default function SellerOnboarding() {
           {step === 3 && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-brand-400" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-lg">Investment Terms</h2>
-                  <p className="text-sm text-muted-foreground">Set your marketplace listing details — shown to investors</p>
-                </div>
+                <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center"><DollarSign className="w-5 h-5 text-brand-400" /></div>
+                <div><h2 className="font-semibold text-lg">Investment Terms</h2><p className="text-sm text-muted-foreground">Set your marketplace listing details — shown to investors</p></div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <NumField label="Asking Amount" field="askingAmount" value={form.askingAmount} onChange={setF}
-                  hint="Total investment you're seeking" />
-                <NumField label="Min Investment" field="minInvestment" value={form.minInvestment} onChange={setF}
-                  hint="Minimum an investor can commit" />
-                <NumField label="Equity Offered" field="equityOffered" value={form.equityOffered} onChange={setF}
-                  prefix="" suffix="%" hint="% of company you're offering" />
-                <NumField label="Expected ROI" field="expectedROI" value={form.expectedROI} onChange={setF}
-                  prefix="" suffix="%" hint="Projected annual return" />
-                <NumField label="Lock Period (months)" field="lockPeriod" value={form.lockPeriod} onChange={setF}
-                  prefix="" hint="How long funds stay locked" />
+                <NumField label="Asking Amount"        field="askingAmount"  value={form.askingAmount}  onChange={setF} hint="Total investment you're seeking" />
+                <NumField label="Min Investment"       field="minInvestment" value={form.minInvestment} onChange={setF} hint="Minimum an investor can commit" />
+                <NumField label="Equity Offered"       field="equityOffered" value={form.equityOffered} onChange={setF} prefix="" suffix="%" hint="% of company you're offering" />
+                <NumField label="Expected ROI"         field="expectedROI"   value={form.expectedROI}   onChange={setF} prefix="" suffix="%" hint="Projected annual return" />
+                <NumField label="Lock Period (months)" field="lockPeriod"    value={form.lockPeriod}    onChange={setF} prefix="" hint="How long funds stay locked" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -381,7 +319,6 @@ export default function SellerOnboarding() {
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Investment Type *</label>
                   <select value={form.investmentType} onChange={e => setF('investmentType', e.target.value)}
@@ -404,58 +341,6 @@ export default function SellerOnboarding() {
                   <AlertCircle className="w-3 h-3" /> Min investment cannot exceed asking amount
                 </p>
               )}
-            </div>
-          )}
-
-          {/* Step 4 — Documents */}
-          {step === 4 && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
-                  <FileSpreadsheet className="w-5 h-5 text-violet-400" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-lg">P&L Statement</h2>
-                  <p className="text-sm text-muted-foreground">Upload your Profit & Loss statement</p>
-                </div>
-              </div>
-
-              <div onClick={() => fileRef.current?.click()}
-                className={cn(
-                  'relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all',
-                  plFile ? 'border-violet-500/50 bg-violet-500/5' : 'border-border hover:border-violet-500/40 hover:bg-violet-500/5',
-                )}>
-                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" />
-                {plFile ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
-                      <FileSpreadsheet className="w-6 h-6 text-violet-400" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">{plFile.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{(plFile.size / 1024).toFixed(1)} KB</p>
-                    </div>
-                    <button type="button" onClick={e => { e.stopPropagation(); setPlFile(null) }}
-                      className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300">
-                      <X className="w-3 h-3" /> Remove
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <Upload className="w-10 h-10 text-muted-foreground/40" />
-                    <div>
-                      <p className="font-semibold text-sm">Click to upload P&L Statement</p>
-                      <p className="text-xs text-muted-foreground mt-1">Excel (.xlsx, .xls) or CSV — max 10MB</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-3 rounded-xl bg-brand-500/8 border border-brand-500/20">
-                <p className="text-xs text-brand-300">
-                  <span className="font-semibold">Lock period:</span> Once submitted, you cannot edit this application for 30 days.
-                </p>
-              </div>
             </div>
           )}
         </motion.div>

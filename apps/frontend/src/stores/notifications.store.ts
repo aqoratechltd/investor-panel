@@ -42,28 +42,26 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
     try {
       const { db } = await import('@/lib/firebase')
-      const { collection, query, where, orderBy, limit, onSnapshot } = await import('firebase/firestore')
+      const { collection, query, where, onSnapshot } = await import('firebase/firestore')
 
-      const q = query(
-        collection(db, 'notifications'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(30),
-      )
+      const q = query(collection(db, 'notifications'), where('userId', '==', userId))
 
       const unsub = onSnapshot(q, snap => {
-        const list: AppNotification[] = snap.docs.map(d => {
-          const data = d.data()
-          const ts = data.createdAt?.toDate?.()
-          return {
-            id:        d.id,
-            title:     data.title ?? '',
-            message:   data.message ?? '',
-            type:      data.type ?? 'INFO',
-            isRead:    data.read ?? false,
-            createdAt: ts ? ts.toISOString() : new Date().toISOString(),
-          }
-        })
+        const list: AppNotification[] = snap.docs
+          .map(d => {
+            const data = d.data()
+            const ts = data.createdAt?.toDate?.()
+            return {
+              id:        d.id,
+              title:     data.title ?? '',
+              message:   data.message ?? '',
+              type:      data.type ?? 'INFO',
+              isRead:    data.read ?? false,
+              createdAt: ts ? ts.toISOString() : new Date().toISOString(),
+            }
+          })
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 30)
         set({
           notifications: list,
           unreadCount:   list.filter(n => !n.isRead).length,

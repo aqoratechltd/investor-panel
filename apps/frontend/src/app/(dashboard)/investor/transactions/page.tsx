@@ -43,14 +43,9 @@ export default function InvestorTransactionsPage() {
     const load = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore')
+        const { collection, query, where, getDocs } = await import('firebase/firestore')
 
-        // Load from transactions collection
-        const txSnap = await getDocs(query(
-          collection(db, 'transactions'),
-          where('investorId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-        ))
+        const txSnap = await getDocs(query(collection(db, 'transactions'), where('investorId', '==', user.id)))
 
         const txList: Transaction[] = txSnap.docs.map(d => {
           const data = d.data()
@@ -66,12 +61,7 @@ export default function InvestorTransactionsPage() {
           }
         })
 
-        // Also load investments as INVESTMENT type transactions
-        const invSnap = await getDocs(query(
-          collection(db, 'investments'),
-          where('investorId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-        ))
+        const invSnap = await getDocs(query(collection(db, 'investments'), where('investorId', '==', user.id)))
 
         const invTx: Transaction[] = invSnap.docs.map(d => {
           const data = d.data()

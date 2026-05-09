@@ -133,24 +133,9 @@ export const useInvestorStore = create<InvestorState>()(
           } = await import('firebase/firestore')
 
           const [txSnap, wdSnap, coinSnap, badgeSnap, flagSnap, wdMethodSnap] = await Promise.all([
-            // Transactions
-            getDocs(query(
-              collection(db, 'transactions'),
-              where('investorId', '==', userId),
-              orderBy('createdAt', 'desc'),
-            )).catch(() => null),
-            // Withdrawals
-            getDocs(query(
-              collection(db, 'withdrawals'),
-              where('investorId', '==', userId),
-              orderBy('requestedAt', 'desc'),
-            )).catch(() => null),
-            // Coin history
-            getDocs(query(
-              collection(db, 'coin_history'),
-              where('userId', '==', userId),
-              orderBy('createdAt', 'desc'),
-            )).catch(() => null),
+            getDocs(query(collection(db, 'transactions'), where('investorId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'withdrawals'),  where('investorId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'coin_history'), where('userId',     '==', userId))).catch(() => null),
             // Badges
             getDocs(query(
               collection(db, 'badges'),

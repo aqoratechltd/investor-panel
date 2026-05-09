@@ -485,19 +485,14 @@ export default function InvestorDashboard() {
     const load = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, getDocs, getDoc, doc, orderBy, limit } = await import('firebase/firestore')
+        const { collection, query, where, getDocs, getDoc, doc } = await import('firebase/firestore')
 
         const [invSnap, badgeSnap, txSnap, flagSnap, wdSnap] = await Promise.all([
-          // Investments
-          getDocs(query(collection(db, 'investments'), where('investorId', '==', user.id), orderBy('createdAt', 'desc'))),
-          // Badges
-          getDocs(query(collection(db, 'badges'), where('userId', '==', user.id))),
-          // Recent transactions (last 5)
-          getDocs(query(collection(db, 'transactions'), where('investorId', '==', user.id), orderBy('createdAt', 'desc'), limit(5))).catch(() => null),
-          // User flags
+          getDocs(query(collection(db, 'investments'),  where('investorId', '==', user.id))),
+          getDocs(query(collection(db, 'badges'),       where('userId',     '==', user.id))),
+          getDocs(query(collection(db, 'transactions'), where('investorId', '==', user.id))).catch(() => null),
           getDoc(doc(db, 'user_flags', user.id)),
-          // Withdrawals (to compute pending)
-          getDocs(query(collection(db, 'withdrawals'), where('investorId', '==', user.id), orderBy('requestedAt', 'desc'), limit(5))).catch(() => null),
+          getDocs(query(collection(db, 'withdrawals'),  where('investorId', '==', user.id))).catch(() => null),
         ])
 
         const invs = invSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]

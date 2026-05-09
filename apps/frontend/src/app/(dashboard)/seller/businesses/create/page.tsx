@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
+import { addCommas, stripCommas, pkrWords } from '@/lib/pkr'
 
 const STEPS = [
   { icon: Building2,  label: 'Business Info' },
@@ -50,10 +51,14 @@ function Field({ label, value, onChange, type = 'text', placeholder = '', requir
   )
 }
 
-function NumField({ label, value, onChange, prefix = '$', suffix = '', error, hint }: {
+function NumField({ label, value, onChange, prefix = '₨', suffix = '', error, hint }: {
   label: string; value: string; onChange: (v: string) => void
   prefix?: string; suffix?: string; error?: string; hint?: string
 }) {
+  const display = value ? addCommas(value) : ''
+  const numeric = parseFloat(stripCommas(value)) || 0
+  const words   = !suffix && numeric > 0 ? pkrWords(numeric) : ''
+
   return (
     <div>
       <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
@@ -62,10 +67,11 @@ function NumField({ label, value, onChange, prefix = '$', suffix = '', error, hi
       <div className="relative">
         {prefix && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>}
         <input
-          type="number" min="0" value={value} onChange={e => onChange(e.target.value)}
+          type="text" inputMode="numeric" value={display}
+          onChange={e => onChange(stripCommas(e.target.value))}
           placeholder="0"
           className={cn(
-            'w-full bg-obsidian-800 border rounded-xl py-3 text-sm focus:outline-none focus:ring-1 transition-colors',
+            'w-full bg-obsidian-800 border rounded-xl py-3 text-sm focus:outline-none focus:ring-1 transition-colors font-mono',
             prefix ? 'pl-8' : 'pl-4',
             suffix ? 'pr-14' : 'pr-4',
             error
@@ -76,6 +82,7 @@ function NumField({ label, value, onChange, prefix = '$', suffix = '', error, hi
         {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-medium">{suffix}</span>}
       </div>
       {error && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
+      {words && !error && <p className="text-xs text-muted-foreground/70 mt-1">{words}</p>}
       {hint && !error && <p className="text-xs text-brand-400 mt-1 flex items-center gap-1"><Sparkles className="w-3 h-3" />{hint}</p>}
     </div>
   )
@@ -83,9 +90,10 @@ function NumField({ label, value, onChange, prefix = '$', suffix = '', error, hi
 // ─────────────────────────────────────────────────────────────────────────────
 
 function fmtNum(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n.toFixed(0)}`
+  if (n >= 1_00_00_000) return `₨${(n / 1_00_00_000).toFixed(1)} Cr`
+  if (n >= 1_00_000)    return `₨${(n / 1_00_000).toFixed(1)} L`
+  if (n >= 1_000)       return `₨${(n / 1_000).toFixed(0)}K`
+  return `₨${n.toFixed(0)}`
 }
 
 export default function CreateBusinessPage() {
@@ -102,6 +110,7 @@ export default function CreateBusinessPage() {
     customers: '', annualRecurringRevenue: '', annualGrowthRate: '', churnRate: '',
     askingAmount: '', minInvestment: '', equityOffered: '', expectedROI: '',
     lockPeriod: '', riskLevel: '', investmentType: '', highlights: '',
+    bankAccountName: '', bankName: '', accountNumber: '', iban: '',
   })
 
   const setF = (k: string) => (v: string) => {
@@ -255,6 +264,12 @@ export default function CreateBusinessPage() {
         equityOffered: n('equityOffered'), expectedROI: n('expectedROI'),
         lockPeriod: parseInt(form.lockPeriod) || 0, riskLevel: form.riskLevel, investmentType: form.investmentType,
         highlights: form.highlights.split('\n').map(h => h.trim()).filter(Boolean),
+        bankDetails: {
+          accountName: form.bankAccountName.trim(),
+          bankName: form.bankName.trim(),
+          accountNumber: form.accountNumber.trim(),
+          iban: form.iban.trim(),
+        },
         // Direct-to-Market: published immediately, visible to investors
         status: 'PUBLISHED',
         is_marketplace_visible: true,
@@ -529,6 +544,24 @@ export default function CreateBusinessPage() {
                 <textarea value={form.highlights} onChange={e => setF('highlights')(e.target.value)}
                   placeholder={"Profitable for 3 years\n40% YoY growth\nPatent-protected technology"} rows={4}
                   className="w-full bg-obsidian-800 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500/50 resize-none font-mono" />
+              </div>
+
+              <div className="border-t border-border pt-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-7 h-7 rounded-lg bg-brand-500/20 flex items-center justify-center">
+                    <DollarSign className="w-3.5 h-3.5 text-brand-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">Bank Account Details</p>
+                    <p className="text-xs text-muted-foreground">Shown to investors who choose bank transfer</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Account Name" value={form.bankAccountName} onChange={setF('bankAccountName')} placeholder="Muhammad Ali" required={false} />
+                  <Field label="Bank Name" value={form.bankName} onChange={setF('bankName')} placeholder="HBL / Meezan / Allied" required={false} />
+                  <Field label="Account Number" value={form.accountNumber} onChange={setF('accountNumber')} placeholder="1234567890" required={false} />
+                  <Field label="IBAN" value={form.iban} onChange={setF('iban')} placeholder="PK36SCBL0000001123456702" required={false} />
+                </div>
               </div>
             </>}
           </motion.div>

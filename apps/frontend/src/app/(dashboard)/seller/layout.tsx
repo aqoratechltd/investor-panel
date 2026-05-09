@@ -7,7 +7,18 @@ import { useSellerStore } from '@/stores/seller.store'
 
 // Direct-to-Market: PENDING/REJECTED gates removed. Only check for missing onboarding.
 // TO RE-ENABLE: Restore PENDING → /seller/pending and REJECTED → /seller/rejected checks.
-const BYPASS_PATHS = ['/seller/onboarding', '/seller/businesses', '/seller/inbox']
+const BYPASS_PATHS = [
+  '/seller/onboarding',
+  '/seller/businesses',
+  '/seller/inbox',
+  '/seller/withdrawals',
+  '/seller/reports',
+  '/seller/portfolio-manager',
+  '/seller/investors',
+  '/seller/investments',
+  '/seller/settings',
+  '/seller',
+]
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuthStore()
@@ -36,7 +47,10 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
     }
 
     // Only run the Firestore check once per user session
-    if (checkedUserId.current === user!.id) return
+    if (checkedUserId.current === user!.id) {
+      setChecked(true)
+      return
+    }
 
     const checkApplication = async () => {
       try {

@@ -786,7 +786,7 @@ export default function MarketplacePage() {
   const { format } = useCurrencyStore()
   const [search, setSearch] = useState('')
 
-  useEffect(() => { if (!isLoaded) initialize() }, [isLoaded, initialize])
+  useEffect(() => { initialize() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [chartAsset, setChartAsset] = useState<MarketAsset | null>(null)
   const [contactAsset, setContactAsset] = useState<MarketAsset | null>(null)
 

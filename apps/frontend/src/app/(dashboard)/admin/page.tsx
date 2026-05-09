@@ -37,9 +37,10 @@ interface PendingSellerApp {
 }
 
 function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n}`
+  if (n >= 1_00_00_000) return `₨${(n / 1_00_00_000).toFixed(1)} Cr`
+  if (n >= 1_00_000)    return `₨${(n / 1_00_000).toFixed(1)} L`
+  if (n >= 1_000)       return `₨${(n / 1_000).toFixed(0)}K`
+  return `₨${n.toLocaleString('en-PK')}`
 }
 
 function fmtDate(v: any) {

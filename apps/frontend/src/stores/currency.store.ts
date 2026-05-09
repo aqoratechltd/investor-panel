@@ -28,7 +28,7 @@ interface CurrencyState {
 export const useCurrencyStore = create<CurrencyState>()(
   persist(
     (set, get) => ({
-      currency: 'USD',
+      currency: 'PKR',
 
       setCurrency: (currency) => set({ currency }),
 
@@ -41,13 +41,16 @@ export const useCurrencyStore = create<CurrencyState>()(
         const { currency, convert } = get()
         const meta = CURRENCY_META[currency]
         const converted = convert(usdAmount)
+        const abs = Math.abs(converted)
 
         if (compact) {
-          if (Math.abs(converted) >= 1_000_000) {
-            return `${meta.symbol}${(converted / 1_000_000).toFixed(1)}M`
-          }
-          if (Math.abs(converted) >= 1_000) {
-            return `${meta.symbol}${(converted / 1_000).toFixed(1)}K`
+          if (currency === 'PKR') {
+            if (abs >= 1_00_00_000) return `${meta.symbol}${(converted / 1_00_00_000).toFixed(1)} Cr`
+            if (abs >= 1_00_000)   return `${meta.symbol}${(converted / 1_00_000).toFixed(1)} L`
+            if (abs >= 1_000)      return `${meta.symbol}${(converted / 1_000).toFixed(1)}K`
+          } else {
+            if (abs >= 1_000_000) return `${meta.symbol}${(converted / 1_000_000).toFixed(1)}M`
+            if (abs >= 1_000)     return `${meta.symbol}${(converted / 1_000).toFixed(1)}K`
           }
         }
 

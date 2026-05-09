@@ -125,17 +125,20 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
 
   // Loads real assets from Firestore: published businesses → COMPANY, active coins → COIN
   initialize: async () => {
+    set({ isLoaded: false })
     try {
       const { db } = await import('@/lib/firebase')
       const { collection, query, where, getDocs } = await import('firebase/firestore')
 
       const [bizSnap, coinSnap, inquirySnap] = await Promise.all([
-        getDocs(query(collection(db, 'businesses'), where('status', '==', 'PUBLISHED'))).catch(() => null),
-        getDocs(query(collection(db, 'seller_coins'), where('isActive', '==', true))).catch(() => null),
-        getDocs(query(collection(db, 'marketplace_inquiries'))).catch(() => null),
+        getDocs(query(collection(db, 'businesses'), where('status', '==', 'PUBLISHED'))).catch((e) => { console.error('[Marketplace] businesses query failed:', e?.code, e?.message); return null }),
+        getDocs(query(collection(db, 'seller_coins'), where('isActive', '==', true))).catch((e) => { console.error('[Marketplace] coins query failed:', e?.code, e?.message); return null }),
+        getDocs(query(collection(db, 'marketplace_inquiries'))).catch((e) => { console.error('[Marketplace] inquiries query failed:', e?.code, e?.message); return null }),
       ])
 
       const assets: Omit<MarketAsset, 'performanceScore' | 'isTopPerforming'>[] = []
+
+      console.log('[Marketplace] businesses docs:', bizSnap?.size ?? 'null', bizSnap?.docs.map(d => ({ id: d.id, status: d.data().status, name: d.data().name })))
 
       if (bizSnap) {
         bizSnap.docs.forEach(d => {
