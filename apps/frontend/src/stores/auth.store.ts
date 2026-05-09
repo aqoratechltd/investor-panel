@@ -57,7 +57,6 @@ interface AuthState {
   isLoading: boolean
   emailVerified: boolean
   phoneVerified: boolean
-
   login: (email: string, password: string) => Promise<void>
   loginWithPhone: (confirmationResult: any, otp: string) => Promise<void>
   register: (params: {
@@ -86,13 +85,20 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       emailVerified: false,
       phoneVerified: false,
-
       // ── Login (email/password) ─────────────────────────────────────────
       login: async (email, password) => {
         set({ isLoading: true })
         try {
-          // Super admin hardcoded bypass
+          // Super admin hardcoded bypass — sign in anonymously to Firebase so
+          // Firestore rules (request.auth != null) pass for all admin queries.
           if (email === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
+            const fb = await getFirebaseModules()
+            if (fb.isFirebaseConfigured()) {
+              try {
+                const { signInAnonymously } = await import('firebase/auth')
+                await signInAnonymously(fb.auth)
+              } catch {}
+            }
             localStorage.setItem('access_token', 'super_admin_token')
             set({
               user: SUPER_ADMIN.profile,
@@ -347,6 +353,23 @@ export const useAuthStore = create<AuthState>()(
         try {
           const fb = await getFirebaseModules()
           if (!fb.isFirebaseConfigured()) return
+
+          // If super admin was persisted from Zustand, sign in anonymously so
+          // Firestore rules (request.auth != null) pass without a real Firebase account.
+          const currentState = (globalThis as any).__zustand_auth_state
+          const persistedUser = (() => {
+            try {
+              const raw = localStorage.getItem('investor-panel-auth')
+              return raw ? JSON.parse(raw)?.state?.user : null
+            } catch { return null }
+          })()
+          if (persistedUser?.id === 'super_admin' && !fb.auth.currentUser) {
+            try {
+              const { signInAnonymously } = await import('firebase/auth')
+              await signInAnonymously(fb.auth)
+            } catch {}
+            return
+          }
 
           return new Promise<void>((resolve) => {
             const unsub = fb.onAuthStateChanged(fb.auth, async (fbUser) => {

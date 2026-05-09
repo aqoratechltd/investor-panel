@@ -9,9 +9,11 @@ import {
   Building2, ArrowLeft, TrendingUp, Users, DollarSign,
   Shield, Clock, CheckCircle2, BarChart3, MessageSquare,
   Globe, Loader2, AlertCircle, X, CandlestickChart,
+  Upload, Banknote, Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { addCommas, stripCommas, pkrWords } from '@/lib/pkr'
 import type { Business } from '../page'
 
 interface CandleBar { time: number; open: number; high: number; low: number; close: number }
@@ -51,9 +53,10 @@ function CandleChart({ data }: { data: CandleBar[] }) {
 }
 
 function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n}`
+  if (n >= 1_00_00_000) return `₨${(n / 1_00_00_000).toFixed(1)} Cr`
+  if (n >= 1_00_000)    return `₨${(n / 1_00_000).toFixed(1)} L`
+  if (n >= 1_000)       return `₨${(n / 1_000).toFixed(0)}K`
+  return `₨${n.toLocaleString('en-PK')}`
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -76,6 +79,9 @@ export default function BusinessDetailPage() {
   const [investAmount, setInvestAmount]       = useState('')
   const [investNote, setInvestNote]           = useState('')
   const [submitting, setSubmitting]           = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'BANK_TRANSFER'>('WALLET')
+  const [screenshot, setScreenshot] = useState<File | null>(null)
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
   const [existingInvestment, setExistingInvestment] = useState<any>(null)
 
   useEffect(() => {
@@ -131,6 +137,8 @@ export default function BusinessDetailPage() {
       if (!existing.empty) {
         newChatId = existing.docs[0].id
       } else {
+        // Direct-to-Market: invest unlocked immediately on chat creation, no threshold required.
+        // TO RE-ENABLE: Set investUnlocked: false and restore the 10-message gate in chat pages.
         const chatRef = await addDoc(collection(db, 'chats'), {
           businessId:   business.id,
           businessName: business.name,
@@ -144,7 +152,7 @@ export default function BusinessDetailPage() {
           unreadSeller: 0,
           unreadInvestor: 0,
           messageCount: 0,
-          investUnlocked: false,
+          investUnlocked: true,
         })
         newChatId = chatRef.id
       }
@@ -160,102 +168,85 @@ export default function BusinessDetailPage() {
     if (!user || !business) return
     const amount = parseFloat(investAmount)
     if (!amount || isNaN(amount)) return toast.error('Enter a valid amount')
-    if (amount < (business.minInvestment ?? 0)) {
-      return toast.error(`Minimum investment is ${fmt(business.minInvestment ?? 0)}`)
-    }
-    if (amount > business.askingAmount) {
-      return toast.error(`Cannot exceed asking amount of ${fmt(business.askingAmount)}`)
-    }
+    if (amount < (business.minInvestment ?? 0)) return toast.error(`Minimum investment is ${fmt(business.minInvestment ?? 0)}`)
+    if (amount > business.askingAmount) return toast.error(`Cannot exceed asking amount of ${fmt(business.askingAmount)}`)
+    if (paymentMethod === 'BANK_TRANSFER' && !screenshot) return toast.error('Please upload your payment screenshot')
 
     setSubmitting(true)
     try {
       const { db } = await import('@/lib/firebase')
       const { collection, addDoc, doc, getDoc, updateDoc, increment, setDoc, serverTimestamp } = await import('firebase/firestore')
 
-      // Check wallet balance
-      const flagsSnap = await getDoc(doc(db, 'user_flags', user.id))
-      const coinBalance = flagsSnap.exists() ? (flagsSnap.data().coinBalance ?? 0) : 0
-      if (coinBalance < amount) {
-        toast.error(`Insufficient wallet balance. You have $${coinBalance.toLocaleString()}.`)
-        setSubmitting(false)
-        return
+      if (paymentMethod === 'WALLET') {
+        // Check wallet balance
+        const flagsSnap = await getDoc(doc(db, 'user_flags', user.id))
+        const coinBalance = flagsSnap.exists() ? (flagsSnap.data().coinBalance ?? 0) : 0
+        if (coinBalance < amount) {
+          toast.error(`Insufficient wallet balance. You have $${coinBalance.toLocaleString()}.`)
+          setSubmitting(false)
+          return
+        }
+        await updateDoc(doc(db, 'user_flags', user.id), { coinBalance: increment(-amount) })
+
+        const ref = await addDoc(collection(db, 'investments'), {
+          businessId: business.id, businessName: business.name,
+          sellerId: business.sellerId, sellerName: business.sellerName,
+          investorId: user.id, investorName: `${user.firstName} ${user.lastName}`, investorEmail: user.email,
+          amount, equityOffered: business.equityOffered, expectedROI: business.expectedROI,
+          lockPeriod: business.lockPeriod, note: investNote,
+          paymentMethod: 'WALLET', status: 'APPROVED',
+          createdAt: serverTimestamp(), approvedAt: serverTimestamp(),
+        })
+
+        // Credit seller with 1-day lock — funds available after 24h
+        const availableAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        await addDoc(collection(db, 'seller_balance_locks'), {
+          sellerId: business.sellerId, investmentId: ref.id,
+          amount, availableAt, businessName: business.name,
+          investorName: `${user.firstName} ${user.lastName}`,
+          createdAt: serverTimestamp(),
+        })
+        await setDoc(doc(db, 'user_flags', business.sellerId), { lockedBalance: increment(amount) }, { merge: true })
+
+        await addDoc(collection(db, 'coin_ledger'), {
+          userId: user.id, type: 'INVESTMENT', amount: -amount,
+          description: `Investment in ${business.name}`, referenceId: ref.id, createdAt: serverTimestamp(),
+        })
+        await setDoc(doc(db, 'user_flags', user.id), { points: increment(5), userId: user.id, userName: `${user.firstName} ${user.lastName}` }, { merge: true })
+        await addDoc(collection(db, 'notifications'), { userId: user.id, title: 'Investment Confirmed!', message: `Your $${amount.toLocaleString()} investment in ${business.name} is live.`, type: 'SUCCESS', read: false, createdAt: serverTimestamp() })
+        await addDoc(collection(db, 'notifications'), { userId: business.sellerId, title: 'New Investment Received', message: `${user.firstName} ${user.lastName} invested $${amount.toLocaleString()} in ${business.name}. Funds available in 24h.`, type: 'SUCCESS', read: false, createdAt: serverTimestamp() })
+        await updateDoc(doc(db, 'businesses', business.id), { interestedCount: increment(1) })
+        setExistingInvestment({ id: ref.id, amount, status: 'APPROVED' })
+        setShowInvestModal(false)
+        toast.success(`Investment of $${amount.toLocaleString()} confirmed!`)
+
+      } else {
+        // Bank transfer — convert screenshot to base64
+        let screenshotBase64 = ''
+        if (screenshot) {
+          screenshotBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onload = (e) => resolve(e.target?.result as string ?? '')
+            reader.readAsDataURL(screenshot)
+          })
+        }
+
+        const ref = await addDoc(collection(db, 'investments'), {
+          businessId: business.id, businessName: business.name,
+          sellerId: business.sellerId, sellerName: business.sellerName,
+          investorId: user.id, investorName: `${user.firstName} ${user.lastName}`, investorEmail: user.email,
+          amount, equityOffered: business.equityOffered, expectedROI: business.expectedROI,
+          lockPeriod: business.lockPeriod, note: investNote,
+          paymentMethod: 'BANK_TRANSFER', status: 'PENDING_CONFIRMATION',
+          screenshotBase64, screenshotName: screenshot?.name ?? '',
+          createdAt: serverTimestamp(),
+        })
+
+        await addDoc(collection(db, 'notifications'), { userId: business.sellerId, title: 'Bank Transfer Payment Received', message: `${user.firstName} ${user.lastName} has made a bank transfer of $${amount.toLocaleString()} for ${business.name}. Please verify and confirm.`, type: 'INFO', read: false, createdAt: serverTimestamp() })
+        setExistingInvestment({ id: ref.id, amount, status: 'PENDING_CONFIRMATION' })
+        setShowInvestModal(false)
+        toast.success('Payment screenshot submitted! Waiting for seller confirmation.')
       }
-
-      // Deduct from wallet
-      await updateDoc(doc(db, 'user_flags', user.id), { coinBalance: increment(-amount) })
-
-      // Create investment as APPROVED immediately
-      const ref = await addDoc(collection(db, 'investments'), {
-        businessId:    business.id,
-        businessName:  business.name,
-        sellerId:      business.sellerId,
-        sellerName:    business.sellerName,
-        investorId:    user.id,
-        investorName:  `${user.firstName} ${user.lastName}`,
-        investorEmail: user.email,
-        amount,
-        equityOffered: business.equityOffered,
-        expectedROI:   business.expectedROI,
-        lockPeriod:    business.lockPeriod,
-        note:          investNote,
-        status:        'APPROVED',
-        createdAt:     serverTimestamp(),
-        approvedAt:    serverTimestamp(),
-      })
-
-      // Log wallet transaction
-      await addDoc(collection(db, 'coin_ledger'), {
-        userId:      user.id,
-        type:        'INVESTMENT',
-        amount:      -amount,
-        description: `Investment in ${business.name}`,
-        referenceId: ref.id,
-        createdAt:   serverTimestamp(),
-      })
-
-      // Award points + badge to investor
-      await setDoc(doc(db, 'user_flags', user.id), {
-        points:    increment(5),
-        userId:    user.id,
-        userName:  `${user.firstName} ${user.lastName}`,
-      }, { merge: true })
-
-      await addDoc(collection(db, 'badges'), {
-        userId:       user.id,
-        userName:     `${user.firstName} ${user.lastName}`,
-        type:         'INVESTOR',
-        label:        'Active Investor',
-        businessName: business.name,
-        amount,
-        earnedAt:     serverTimestamp(),
-      })
-
-      // Notify investor
-      await addDoc(collection(db, 'notifications'), {
-        userId:    user.id,
-        title:     'Investment Confirmed!',
-        message:   `Your $${amount.toLocaleString()} investment in ${business.name} is live. You earned +5 points and a badge!`,
-        type:      'SUCCESS',
-        read:      false,
-        createdAt: serverTimestamp(),
-      })
-
-      // Notify seller
-      await addDoc(collection(db, 'notifications'), {
-        userId:    business.sellerId,
-        title:     'New Investment Received',
-        message:   `${user.firstName} ${user.lastName} invested $${amount.toLocaleString()} in ${business.name}.`,
-        type:      'SUCCESS',
-        read:      false,
-        createdAt: serverTimestamp(),
-      })
-
-      // Increment business interest count
-      await updateDoc(doc(db, 'businesses', business.id), { interestedCount: increment(1) })
-
-      setExistingInvestment({ id: ref.id, amount, status: 'APPROVED' })
-      setShowInvestModal(false)
-      toast.success(`Investment of $${amount.toLocaleString()} confirmed!`)
     } catch (e) {
       console.error(e)
       toast.error('Failed to submit investment')
@@ -329,10 +320,13 @@ export default function BusinessDetailPage() {
                 <div className={cn(
                   'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border',
                   existingInvestment.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                  existingInvestment.status === 'PENDING_CONFIRMATION' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                   'bg-red-500/10 text-red-400 border-red-500/20',
                 )}>
                   <CheckCircle2 className="w-4 h-4" />
-                  {existingInvestment.status === 'APPROVED' ? `Invested ${fmt(existingInvestment.amount)}` : 'Investment Rejected'}
+                  {existingInvestment.status === 'APPROVED' ? `Invested ${fmt(existingInvestment.amount)}` :
+                  existingInvestment.status === 'PENDING_CONFIRMATION' ? `Awaiting Seller Confirmation` :
+                  'Investment Rejected'}
                 </div>
               ) : (
                 <button
@@ -450,10 +444,13 @@ export default function BusinessDetailPage() {
               <div className={cn(
                 'w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl border text-sm font-semibold',
                 existingInvestment.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                existingInvestment.status === 'PENDING_CONFIRMATION' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                 'bg-red-500/10 text-red-400 border-red-500/20',
               )}>
                 <CheckCircle2 className="w-4 h-4" />
-                {existingInvestment.status === 'APPROVED' ? `Invested ${fmt(existingInvestment.amount)}` : 'Investment Rejected'}
+                {existingInvestment.status === 'APPROVED' ? `Invested ${fmt(existingInvestment.amount)}` :
+                existingInvestment.status === 'PENDING_CONFIRMATION' ? `Awaiting Seller Confirmation` :
+                'Investment Rejected'}
               </div>
             ) : (
               <button
@@ -471,9 +468,7 @@ export default function BusinessDetailPage() {
       <AnimatePresence>
         {showInvestModal && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowInvestModal(false) }}
           >
@@ -481,8 +476,9 @@ export default function BusinessDetailPage() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-obsidian-900 border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              className="bg-obsidian-900 border border-border rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto"
             >
+              {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
@@ -490,7 +486,7 @@ export default function BusinessDetailPage() {
                   </div>
                   <div>
                     <h3 className="font-bold">Invest in {business.name}</h3>
-                    <p className="text-xs text-muted-foreground">Funds deducted from wallet instantly</p>
+                    <p className="text-xs text-muted-foreground">Choose your payment method</p>
                   </div>
                 </div>
                 <button onClick={() => setShowInvestModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors">
@@ -501,9 +497,9 @@ export default function BusinessDetailPage() {
               {/* Deal summary */}
               <div className="grid grid-cols-3 gap-2 mb-5">
                 {[
-                  { label: 'Asking',  value: fmt(business.askingAmount),   color: 'text-brand-400' },
-                  { label: 'ROI',     value: `${business.expectedROI}%`,   color: 'text-emerald-400' },
-                  { label: 'Equity',  value: `${business.equityOffered}%`, color: 'text-violet-400' },
+                  { label: 'Asking', value: fmt(business.askingAmount), color: 'text-brand-400' },
+                  { label: 'ROI', value: `${business.expectedROI}%`, color: 'text-emerald-400' },
+                  { label: 'Equity', value: `${business.equityOffered}%`, color: 'text-violet-400' },
                 ].map(m => (
                   <div key={m.label} className="bg-obsidian-800 rounded-xl p-3 text-center">
                     <p className={cn('text-sm font-bold font-mono', m.color)}>{m.value}</p>
@@ -512,59 +508,143 @@ export default function BusinessDetailPage() {
                 ))}
               </div>
 
-              {/* Amount input */}
-              <div className="mb-4">
+              {/* Amount */}
+              <div className="mb-5">
                 <label className="block text-xs text-muted-foreground mb-1.5">
                   Investment Amount <span className="text-brand-400">(min {fmt(minInv)})</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₨</span>
                   <input
-                    type="number"
-                    value={investAmount}
-                    onChange={e => setInvestAmount(e.target.value)}
-                    placeholder={minInv.toString()}
-                    min={minInv}
-                    max={business.askingAmount}
+                    type="text" inputMode="numeric"
+                    value={investAmount ? addCommas(investAmount) : ''}
+                    onChange={e => setInvestAmount(stripCommas(e.target.value))}
+                    placeholder={minInv.toLocaleString('en-PK')}
                     className="w-full bg-obsidian-800 border border-border rounded-xl pl-7 pr-4 py-3 text-sm font-mono focus:outline-none focus:border-brand-500/50 transition-colors"
                   />
                 </div>
+                {investAmount && parseFloat(investAmount) > 0 && (
+                  <p className="text-xs text-muted-foreground/70 mt-1">{pkrWords(parseFloat(investAmount))}</p>
+                )}
                 {investAmount && parseFloat(investAmount) >= minInv && (
-                  <p className="text-xs text-emerald-400 mt-1.5">
+                  <p className="text-xs text-emerald-400 mt-1">
                     Projected return: ~{fmt(parseFloat(investAmount) * (1 + business.expectedROI / 100))} after {business.lockPeriod} months
                   </p>
                 )}
               </div>
 
+              {/* Payment method */}
               <div className="mb-5">
-                <label className="block text-xs text-muted-foreground mb-1.5">Note to Admin (optional)</label>
-                <textarea
-                  value={investNote}
-                  onChange={e => setInvestNote(e.target.value)}
-                  placeholder="Why you want to invest in this business…"
-                  rows={3}
-                  className="w-full bg-obsidian-800 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500/50 transition-colors resize-none"
-                />
+                <label className="block text-xs text-muted-foreground mb-2">Payment Method</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setPaymentMethod('WALLET')}
+                    className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border transition-all',
+                      paymentMethod === 'WALLET' ? 'bg-brand-500/10 border-brand-500/40 text-brand-300' : 'bg-obsidian-800 border-border text-muted-foreground hover:border-white/20')}>
+                    <Wallet className="w-5 h-5" />
+                    <span className="text-xs font-semibold">Wallet Balance</span>
+                    <span className="text-[10px] opacity-70">Instant confirmation</span>
+                  </button>
+                  <button type="button" onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                    className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border transition-all',
+                      paymentMethod === 'BANK_TRANSFER' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-obsidian-800 border-border text-muted-foreground hover:border-white/20')}>
+                    <Banknote className="w-5 h-5" />
+                    <span className="text-xs font-semibold">Bank Transfer</span>
+                    <span className="text-[10px] opacity-70">Upload screenshot</span>
+                  </button>
+                </div>
               </div>
 
-              <p className="text-xs text-muted-foreground/60 mb-4 bg-obsidian-800/50 rounded-xl p-3 border border-border/50">
-                Your request will be reviewed by the Super Admin. You will be notified once approved or rejected. No funds are transferred until approval.
-              </p>
+              {/* Bank Transfer details */}
+              {paymentMethod === 'BANK_TRANSFER' && (
+                <div className="mb-5 space-y-4">
+                  {/* Seller bank details */}
+                  {(business as any).bankDetails?.accountNumber ? (
+                    <div className="bg-obsidian-800/80 border border-border rounded-xl p-4">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5 text-emerald-400" /> Seller's Bank Details
+                      </p>
+                      <div className="space-y-2">
+                        {[
+                          { label: 'Account Name', value: (business as any).bankDetails.accountName },
+                          { label: 'Bank', value: (business as any).bankDetails.bankName },
+                          { label: 'Account Number', value: (business as any).bankDetails.accountNumber },
+                          { label: 'IBAN', value: (business as any).bankDetails.iban },
+                        ].filter(f => f.value).map(f => (
+                          <div key={f.label} className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground text-xs">{f.label}</span>
+                            <span className="font-mono font-medium text-xs bg-obsidian-900 px-2 py-0.5 rounded select-all">{f.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-amber-400 mt-3 flex items-center gap-1.5">
+                        <AlertCircle className="w-3 h-3" /> Transfer the exact amount and upload screenshot below
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      Seller has not added bank details yet. Contact them via chat.
+                    </div>
+                  )}
+
+                  {/* Screenshot upload */}
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1.5">Payment Screenshot <span className="text-red-400">*</span></label>
+                    <div
+                      onClick={() => document.getElementById('screenshot-input')?.click()}
+                      className={cn('border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all',
+                        screenshot ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border hover:border-brand-500/30 hover:bg-brand-500/5')}
+                    >
+                      <input id="screenshot-input" type="file" accept="image/*" className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return }
+                          setScreenshot(file)
+                          const reader = new FileReader()
+                          reader.onload = ev => setScreenshotPreview(ev.target?.result as string ?? null)
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                      {screenshotPreview ? (
+                        <div className="space-y-2">
+                          <img src={screenshotPreview} alt="screenshot" className="max-h-32 mx-auto rounded-lg object-contain" />
+                          <p className="text-xs text-emerald-400">{screenshot?.name}</p>
+                          <button type="button" onClick={e => { e.stopPropagation(); setScreenshot(null); setScreenshotPreview(null) }}
+                            className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 py-2">
+                          <Upload className="w-8 h-8 text-muted-foreground/40" />
+                          <p className="text-xs text-muted-foreground">Click to upload payment screenshot</p>
+                          <p className="text-[10px] text-muted-foreground/60">PNG, JPG — max 5MB</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Note */}
+              <div className="mb-5">
+                <label className="block text-xs text-muted-foreground mb-1.5">Note (optional)</label>
+                <textarea value={investNote} onChange={e => setInvestNote(e.target.value)}
+                  placeholder="Why you want to invest…" rows={2}
+                  className="w-full bg-obsidian-800 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500/50 transition-colors resize-none" />
+              </div>
 
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowInvestModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 text-sm font-medium transition-all"
-                >
+                <button onClick={() => setShowInvestModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 text-sm font-medium transition-all">
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmitInvestment}
-                  disabled={submitting || !investAmount || parseFloat(investAmount) < minInv}
+                  disabled={submitting || !investAmount || parseFloat(investAmount) < minInv || (paymentMethod === 'BANK_TRANSFER' && !screenshot)}
                   className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
-                  {submitting ? 'Submitting…' : 'Submit Request'}
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : paymentMethod === 'WALLET' ? <Wallet className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+                  {submitting ? 'Submitting…' : paymentMethod === 'WALLET' ? 'Pay from Wallet' : 'Submit Transfer'}
                 </button>
               </div>
             </motion.div>

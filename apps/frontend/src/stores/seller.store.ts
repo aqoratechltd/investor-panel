@@ -104,89 +104,6 @@ export interface SellerInvestment {
   trend: Array<{ date: string; value: number }>
 }
 
-// ── Seed data ──────────────────────────────────────────────────────────────────
-
-function genTrend(base: number, days = 14): Array<{ date: string; value: number }> {
-  const arr: Array<{ date: string; value: number }> = []
-  let v = base * 0.9
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i)
-    v = v * (1 + (Math.random() - 0.44) * 0.04)
-    arr.push({ date: d.toISOString().split('T')[0], value: Math.round(v) })
-  }
-  return arr
-}
-
-const SEED_COINS: SellerCoin[] = [
-  { id: 'c1', name: 'MetaCoin', symbol: 'META', icon: '🎯', returnRate: 5.2, isPositive: true, totalSupply: 420000, currentPrice: 1.24, description: 'Represents Meta Ads channel returns', isActive: true, createdAt: '2025-01-01T00:00:00Z' },
-  { id: 'c2', name: 'TikTokCoin', symbol: 'TKTK', icon: '🎵', returnRate: 3.6, isPositive: true, totalSupply: 210000, currentPrice: 0.98, description: 'TikTok Ads performance token', isActive: true, createdAt: '2025-01-15T00:00:00Z' },
-  { id: 'c3', name: 'GrowthCoin', symbol: 'GRWTH', icon: '📈', returnRate: 8.1, isPositive: true, totalSupply: 180000, currentPrice: 2.15, description: 'Compound growth incentive', isActive: true, createdAt: '2025-02-01T00:00:00Z' },
-  { id: 'c4', name: 'ExtraCoin', symbol: 'XTRA', icon: '⚡', returnRate: 2.4, isPositive: false, totalSupply: 32000, currentPrice: 0.45, description: 'Experimental channel token', isActive: false, createdAt: '2025-02-15T00:00:00Z' },
-]
-
-const SEED_INVESTORS: SellerInvestor[] = [
-  { id: 'i1', firstName: 'Demo', lastName: 'Investor', email: 'investor@demo.io', phone: '+44 7700 900001', totalInvested: 248500, totalProfit: 32840, roi: 13.22, coinBalance: 8420, status: 'ACTIVE', joinedAt: '2025-01-10T09:00:00Z', lastActivity: new Date(Date.now() - 2 * 3600000).toISOString() },
-  { id: 'i2', firstName: 'Rachel', lastName: 'Torres', email: 'rachel@torres.io', phone: '+44 7700 900002', totalInvested: 120000, totalProfit: 32400, roi: 27.0, coinBalance: 3240, status: 'ACTIVE', joinedAt: '2025-01-20T10:00:00Z', lastActivity: new Date(Date.now() - 1 * 86400000).toISOString() },
-  { id: 'i3', firstName: 'Umar', lastName: 'Khan', email: 'umar@khan.pk', phone: '+92 300 1234567', totalInvested: 85000, totalProfit: 11900, roi: 14.0, coinBalance: 1850, status: 'ACTIVE', joinedAt: '2025-02-01T08:00:00Z', lastActivity: new Date(Date.now() - 3 * 3600000).toISOString() },
-  { id: 'i4', firstName: 'Fatima', lastName: 'Malik', email: 'fatima@malik.io', phone: '+92 321 9876543', totalInvested: 200000, totalProfit: -12000, roi: -6.0, coinBalance: 5100, status: 'PAUSED', joinedAt: '2024-11-15T11:00:00Z', lastActivity: new Date(Date.now() - 7 * 86400000).toISOString() },
-  { id: 'i5', firstName: 'John', lastName: 'Smith', email: 'john@smith.io', phone: '+1 555 000 0001', totalInvested: 50000, totalProfit: 8500, roi: 17.0, coinBalance: 920, status: 'ACTIVE', joinedAt: '2025-02-10T14:00:00Z', lastActivity: new Date(Date.now() - 5 * 3600000).toISOString() },
-  { id: 'i6', firstName: 'Aisha', lastName: 'Raza', email: 'aisha@raza.pk', phone: '+92 333 5555555', totalInvested: 30000, totalProfit: 3600, roi: 12.0, coinBalance: 460, status: 'ACTIVE', joinedAt: '2025-03-01T09:00:00Z', lastActivity: new Date(Date.now() - 30 * 60000).toISOString() },
-  { id: 'i7', firstName: 'Michael', lastName: 'Lee', email: 'michael@lee.io', phone: '+1 555 000 0002', totalInvested: 75000, totalProfit: -4500, roi: -6.0, coinBalance: 1240, status: 'INACTIVE', joinedAt: '2024-12-01T10:00:00Z', lastActivity: new Date(Date.now() - 14 * 86400000).toISOString() },
-  { id: 'i8', firstName: 'Sara', lastName: 'Qureshi', email: 'sara@qureshi.pk', phone: '+92 300 8888888', totalInvested: 160000, totalProfit: 28800, roi: 18.0, coinBalance: 4200, status: 'ACTIVE', joinedAt: '2025-01-05T08:00:00Z', lastActivity: new Date(Date.now() - 1 * 3600000).toISOString() },
-]
-
-const SEED_WITHDRAWALS: SellerWithdrawal[] = [
-  { id: 'sw1', investorId: 'i1', investorName: 'Demo Investor', amount: 15000, method: 'BANK', status: 'PENDING', accountDetails: 'IBAN: GB29 NWBK 6016 1331 9268 19', requestedAt: new Date(Date.now() - 2 * 3600000).toISOString() },
-  { id: 'sw2', investorId: 'i2', investorName: 'Rachel Torres', amount: 8500, method: 'STRIPE', status: 'PENDING', accountDetails: 'Stripe ID: acct_abc123', requestedAt: new Date(Date.now() - 5 * 3600000).toISOString() },
-  { id: 'sw3', investorId: 'i3', investorName: 'Umar Khan', amount: 3200, method: 'EASYPAISA', status: 'APPROVED', accountDetails: '+92 300 1234567', requestedAt: new Date(Date.now() - 24 * 3600000).toISOString() },
-  { id: 'sw4', investorId: 'i4', investorName: 'Fatima Malik', amount: 22000, method: 'BANK', status: 'COMPLETED', accountDetails: 'IBAN: PK36 SCBL 0000 0011 2345 6702', requestedAt: new Date(Date.now() - 3 * 86400000).toISOString(), processedAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { id: 'sw5', investorId: 'i5', investorName: 'John Smith', amount: 5000, method: 'JAZZCASH', status: 'REJECTED', accountDetails: '+1 555 000 0001', requestedAt: new Date(Date.now() - 4 * 86400000).toISOString(), notes: 'Account details mismatch' },
-  { id: 'sw6', investorId: 'i8', investorName: 'Sara Qureshi', amount: 6800, method: 'BANK', status: 'PENDING', accountDetails: 'IBAN: PK12 MEZN 0001 4000 2501 0380', requestedAt: new Date(Date.now() - 1 * 3600000).toISOString() },
-]
-
-const SEED_TASKS: Task[] = [
-  { id: 't1', title: 'Review Q1 portfolio performance', description: 'Analyze all investor portfolios and prepare Q1 report', priority: 'HIGH', status: 'TODO', assignee: 'Demo Seller', dueDate: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0], tags: ['reporting', 'q1'], createdAt: new Date().toISOString() },
-  { id: 't2', title: 'Onboard Rachel Torres to MetaCoin', description: 'Complete KYC and allocate initial portfolio', priority: 'HIGH', status: 'IN_PROGRESS', assignee: 'Demo Seller', dueDate: new Date(Date.now() + 1 * 86400000).toISOString().split('T')[0], tags: ['onboarding', 'kyc'], createdAt: new Date(Date.now() - 1 * 86400000).toISOString() },
-  { id: 't3', title: 'Update withdrawal policy docs', description: 'Reflect new processing times in investor docs', priority: 'MEDIUM', status: 'TODO', assignee: 'Demo Seller', dueDate: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0], tags: ['compliance', 'docs'], createdAt: new Date().toISOString() },
-  { id: 't4', title: 'Approve pending withdrawals', description: 'Process 3 outstanding withdrawal requests', priority: 'HIGH', status: 'IN_PROGRESS', assignee: 'Demo Seller', dueDate: new Date().toISOString().split('T')[0], tags: ['finance', 'urgent'], createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { id: 't5', title: 'Set up new Meta Ads campaign tracking', description: 'Integrate Meta Ads API for real-time ROI tracking', priority: 'MEDIUM', status: 'DONE', assignee: 'Demo Seller', dueDate: new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0], tags: ['integration', 'meta'], createdAt: new Date(Date.now() - 3 * 86400000).toISOString() },
-  { id: 't6', title: 'Monthly coin distribution', description: 'Distribute bonus coins to active investors', priority: 'MEDIUM', status: 'DONE', assignee: 'Demo Seller', dueDate: new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0], tags: ['coins', 'monthly'], createdAt: new Date(Date.now() - 4 * 86400000).toISOString() },
-  { id: 't7', title: 'Respond to Fatima Malik inquiry', description: 'Address concerns about paused portfolio performance', priority: 'HIGH', status: 'TODO', assignee: 'Demo Seller', dueDate: new Date(Date.now() + 1 * 86400000).toISOString().split('T')[0], tags: ['investor-relations'], createdAt: new Date().toISOString() },
-]
-
-const SEED_MEETINGS: Meeting[] = [
-  { id: 'm1', title: 'Portfolio Review — Demo Investor', type: 'VIDEO', attendees: ['Demo Investor', 'Demo Seller'], date: new Date(Date.now() + 2 * 3600000).toISOString(), duration: 45, status: 'UPCOMING', link: 'https://meet.google.com/abc-defg-hij', createdAt: new Date().toISOString() },
-  { id: 'm2', title: 'Onboarding Call — Rachel Torres', type: 'PHONE', attendees: ['Rachel Torres', 'Demo Seller'], date: new Date(Date.now() + 25 * 3600000).toISOString(), duration: 30, status: 'UPCOMING', createdAt: new Date().toISOString() },
-  { id: 'm3', title: 'Q1 Strategy Session', type: 'VIDEO', attendees: ['Umar Khan', 'John Smith', 'Demo Seller'], date: new Date(Date.now() + 3 * 86400000).toISOString(), duration: 60, status: 'UPCOMING', link: 'https://zoom.us/j/123456', createdAt: new Date().toISOString() },
-  { id: 'm4', title: 'Risk Review — Fatima Malik', type: 'IN_PERSON', attendees: ['Fatima Malik', 'Demo Seller'], date: new Date(Date.now() - 1 * 86400000).toISOString(), duration: 60, status: 'COMPLETED', notes: 'Agreed to rebalance portfolio towards stable assets', createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { id: 'm5', title: 'KYC Verification — Sara Qureshi', type: 'VIDEO', attendees: ['Sara Qureshi', 'Demo Seller'], date: new Date(Date.now() - 2 * 86400000).toISOString(), duration: 20, status: 'COMPLETED', notes: 'All documents verified. Portfolio access granted.', createdAt: new Date(Date.now() - 3 * 86400000).toISOString() },
-]
-
-const SEED_CONTACTS: TeamContact[] = [
-  { id: 'i1', name: 'Demo Investor', role: 'Investor', status: 'ONLINE', unread: 2, lastMessage: 'When will my withdrawal be processed?', lastSeen: new Date().toISOString() },
-  { id: 'i2', name: 'Rachel Torres', role: 'Investor', status: 'AWAY', unread: 0, lastMessage: 'Thank you for the update!', lastSeen: new Date(Date.now() - 30 * 60000).toISOString() },
-  { id: 'i3', name: 'Umar Khan', role: 'Investor', status: 'OFFLINE', unread: 1, lastMessage: 'Can we schedule a call?', lastSeen: new Date(Date.now() - 3 * 3600000).toISOString() },
-  { id: 'i4', name: 'Fatima Malik', role: 'Investor', status: 'OFFLINE', unread: 0, lastMessage: 'Understood, I will wait for your review.', lastSeen: new Date(Date.now() - 7 * 86400000).toISOString() },
-  { id: 'i5', name: 'Sara Qureshi', role: 'Investor', status: 'ONLINE', unread: 0, lastMessage: 'Portfolio looks great this month!', lastSeen: new Date().toISOString() },
-]
-
-const SEED_MESSAGES: TeamMessage[] = [
-  { id: 'msg1', contactId: 'i1', senderId: 'i1', senderName: 'Demo Investor', senderRole: 'INVESTOR', content: 'Hi, I submitted a withdrawal request 2 hours ago. When will it be processed?', timestamp: new Date(Date.now() - 2 * 3600000).toISOString(), read: false },
-  { id: 'msg2', contactId: 'i1', senderId: 'seller', senderName: 'Demo Seller', senderRole: 'SELLER', content: 'Hi! I\'m reviewing it now. Withdrawals typically take 1-2 business days. I\'ll keep you updated!', timestamp: new Date(Date.now() - 1.5 * 3600000).toISOString(), read: true },
-  { id: 'msg3', contactId: 'i1', senderId: 'i1', senderName: 'Demo Investor', senderRole: 'INVESTOR', content: 'When will my withdrawal be processed?', timestamp: new Date(Date.now() - 30 * 60000).toISOString(), read: false },
-  { id: 'msg4', contactId: 'i2', senderId: 'seller', senderName: 'Demo Seller', senderRole: 'SELLER', content: 'Your portfolio is performing well this month! Up 3.2% from last week.', timestamp: new Date(Date.now() - 1 * 3600000).toISOString(), read: true },
-  { id: 'msg5', contactId: 'i2', senderId: 'i2', senderName: 'Rachel Torres', senderRole: 'INVESTOR', content: 'Thank you for the update!', timestamp: new Date(Date.now() - 45 * 60000).toISOString(), read: true },
-  { id: 'msg6', contactId: 'i3', senderId: 'i3', senderName: 'Umar Khan', senderRole: 'INVESTOR', content: 'Can we schedule a call?', timestamp: new Date(Date.now() - 3 * 3600000).toISOString(), read: false },
-]
-
-const SEED_INVESTMENTS: SellerInvestment[] = [
-  { id: 'inv1', channel: 'META_ADS', channelColor: '#1877F2', totalInvested: 920000, currentValue: 1047800, pnl: 127800, pnlPercent: 13.89, investorCount: 32, trend: genTrend(1047800) },
-  { id: 'inv2', channel: 'TIKTOK_ADS', channelColor: '#69C9D0', totalInvested: 480000, currentValue: 523200, pnl: 43200, pnlPercent: 9.0, investorCount: 18, trend: genTrend(523200) },
-  { id: 'inv3', channel: 'GOOGLE_ADS', channelColor: '#4285F4', totalInvested: 680000, currentValue: 782000, pnl: 102000, pnlPercent: 15.0, investorCount: 24, trend: genTrend(782000) },
-  { id: 'inv4', channel: 'WHATSAPP', channelColor: '#25D366', totalInvested: 220000, currentValue: 210800, pnl: -9200, pnlPercent: -4.18, investorCount: 8, trend: genTrend(210800) },
-  { id: 'inv5', channel: 'OTHER', channelColor: '#8B5CF6', totalInvested: 180000, currentValue: 162000, pnl: -18000, pnlPercent: -10.0, investorCount: 5, trend: genTrend(162000) },
-]
-
 // ── Store ──────────────────────────────────────────────────────────────────────
 
 interface SellerState {
@@ -198,70 +115,228 @@ interface SellerState {
   contacts: TeamContact[]
   messages: TeamMessage[]
   investments: SellerInvestment[]
+  isLoaded: boolean
+
+  initialize: (userId: string, userName: string) => Promise<void>
 
   // Coins
-  createCoin: (coin: Omit<SellerCoin, 'id' | 'createdAt' | 'totalSupply' | 'currentPrice' | 'isActive'>) => void
-  updateCoin: (id: string, updates: Partial<SellerCoin>) => void
-  deleteCoin: (id: string) => void
-  toggleCoinActive: (id: string) => void
+  createCoin: (userId: string, coin: Omit<SellerCoin, 'id' | 'createdAt' | 'totalSupply' | 'currentPrice' | 'isActive'>) => Promise<void>
+  updateCoin: (id: string, updates: Partial<SellerCoin>) => Promise<void>
+  deleteCoin: (id: string) => Promise<void>
+  toggleCoinActive: (id: string) => Promise<void>
 
   // Investors
   updateInvestorStatus: (id: string, status: SellerInvestor['status']) => void
   addCoinToInvestor: (investorId: string, amount: number) => void
 
   // Withdrawals
-  approveWithdrawal: (id: string) => void
-  rejectWithdrawal: (id: string, notes?: string) => void
-  markWithdrawalCompleted: (id: string) => void
+  approveWithdrawal: (id: string, investorId: string) => Promise<void>
+  rejectWithdrawal: (id: string, notes?: string) => Promise<void>
+  markWithdrawalCompleted: (id: string) => Promise<void>
 
   // Tasks
-  createTask: (task: Omit<Task, 'id' | 'createdAt'>) => void
-  updateTaskStatus: (id: string, status: Task['status']) => void
-  deleteTask: (id: string) => void
-  updateTask: (id: string, updates: Partial<Task>) => void
+  createTask: (userId: string, task: Omit<Task, 'id' | 'createdAt'>) => Promise<void>
+  updateTaskStatus: (id: string, status: Task['status']) => Promise<void>
+  deleteTask: (id: string) => Promise<void>
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>
 
   // Meetings
-  createMeeting: (meeting: Omit<Meeting, 'id' | 'createdAt'>) => void
-  completeMeeting: (id: string, notes?: string) => void
-  cancelMeeting: (id: string) => void
+  createMeeting: (userId: string, meeting: Omit<Meeting, 'id' | 'createdAt'>) => Promise<void>
+  completeMeeting: (id: string, notes?: string) => Promise<void>
+  cancelMeeting: (id: string) => Promise<void>
 
   // Team messages
-  sendMessage: (contactId: string, content: string) => void
+  sendMessage: (contactId: string, content: string, senderName: string) => void
   markContactRead: (contactId: string) => void
 }
 
 export const useSellerStore = create<SellerState>()(
   persist(
     (set, get) => ({
-      coins: SEED_COINS,
-      investors: SEED_INVESTORS,
-      withdrawals: SEED_WITHDRAWALS,
-      tasks: SEED_TASKS,
-      meetings: SEED_MEETINGS,
-      contacts: SEED_CONTACTS,
-      messages: SEED_MESSAGES,
-      investments: SEED_INVESTMENTS,
+      coins: [],
+      investors: [],
+      withdrawals: [],
+      tasks: [],
+      meetings: [],
+      contacts: [],
+      messages: [],
+      investments: [],
+      isLoaded: false,
+
+      // ── Initialize from Firestore ─────────────────────────────────────────
+      initialize: async (userId, userName) => {
+        if (!userId) return
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { collection, query, where, getDocs } = await import('firebase/firestore')
+
+          const [
+            invSnap, wdSnap, taskSnap, meetingSnap, coinSnap,
+          ] = await Promise.all([
+            getDocs(query(collection(db, 'investments'), where('sellerId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'withdrawals'),  where('sellerId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'tasks'),        where('sellerId', '==', userId))).catch(() => null),
+            getDocs(query(collection(db, 'meetings'),     where('sellerId', '==', userId))).catch(() => null),
+            // Seller coins
+            getDocs(query(
+              collection(db, 'seller_coins'),
+              where('sellerId', '==', userId),
+            )).catch(() => null),
+          ])
+
+          // Build investor list from unique investorIds in investments
+          const investorMap = new Map<string, SellerInvestor>()
+          if (invSnap) {
+            for (const d of invSnap.docs) {
+              const data = d.data()
+              const id = data.investorId
+              if (!id) continue
+              const existing = investorMap.get(id)
+              const amount = data.amount || 0
+              if (existing) {
+                existing.totalInvested += amount
+              } else {
+                investorMap.set(id, {
+                  id,
+                  firstName: data.investorName?.split(' ')[0] || 'Investor',
+                  lastName: data.investorName?.split(' ').slice(1).join(' ') || '',
+                  email: data.investorEmail || '',
+                  phone: '',
+                  totalInvested: amount,
+                  totalProfit: 0,
+                  roi: data.expectedROI || 0,
+                  coinBalance: 0,
+                  status: 'ACTIVE',
+                  joinedAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt ?? new Date().toISOString(),
+                  lastActivity: data.createdAt?.toDate?.()?.toISOString?.() ?? new Date().toISOString(),
+                })
+              }
+            }
+          }
+
+          const withdrawals: SellerWithdrawal[] = wdSnap
+            ? wdSnap.docs.map(d => {
+                const data = d.data()
+                return {
+                  id: d.id,
+                  investorId: data.investorId || '',
+                  investorName: data.investorName || 'Investor',
+                  amount: data.amount || 0,
+                  method: data.method || 'BANK',
+                  status: data.status || 'PENDING',
+                  accountDetails: data.accountDetails || '',
+                  requestedAt: data.requestedAt?.toDate?.()?.toISOString?.() ?? data.requestedAt ?? new Date().toISOString(),
+                  processedAt: data.processedAt?.toDate?.()?.toISOString?.() ?? data.processedAt,
+                  notes: data.notes,
+                }
+              })
+            : []
+
+          const tasks: Task[] = taskSnap
+            ? taskSnap.docs.map(d => {
+                const data = d.data()
+                return {
+                  id: d.id,
+                  title: data.title || '',
+                  description: data.description || '',
+                  priority: data.priority || 'MEDIUM',
+                  status: data.status || 'TODO',
+                  assignee: data.assignee || userName,
+                  dueDate: data.dueDate || '',
+                  tags: data.tags || [],
+                  createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt ?? new Date().toISOString(),
+                }
+              })
+            : []
+
+          const meetings: Meeting[] = meetingSnap
+            ? meetingSnap.docs.map(d => {
+                const data = d.data()
+                return {
+                  id: d.id,
+                  title: data.title || '',
+                  type: data.type || 'VIDEO',
+                  attendees: data.attendees || [],
+                  date: data.date?.toDate?.()?.toISOString?.() ?? data.date ?? '',
+                  duration: data.duration || 30,
+                  status: data.status || 'UPCOMING',
+                  notes: data.notes,
+                  link: data.link,
+                  createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt ?? new Date().toISOString(),
+                }
+              })
+            : []
+
+          const coins: SellerCoin[] = coinSnap
+            ? coinSnap.docs.map(d => ({ id: d.id, ...d.data() }) as SellerCoin)
+            : []
+
+          set({
+            investors: Array.from(investorMap.values()),
+            withdrawals,
+            tasks,
+            meetings,
+            coins,
+            isLoaded: true,
+          })
+        } catch (e) {
+          console.error('[SellerStore] initialize error:', e)
+          set({ isLoaded: true })
+        }
+      },
 
       // ── Coins ────────────────────────────────────────────────────────────
-      createCoin: (coin) => {
-        const newCoin: SellerCoin = {
-          ...coin,
-          id: `c_${Date.now()}`,
-          totalSupply: Math.floor(Math.random() * 500000) + 100000,
-          currentPrice: parseFloat((Math.random() * 3 + 0.5).toFixed(2)),
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        }
-        set((s) => ({ coins: [newCoin, ...s.coins] }))
+      createCoin: async (userId, coin) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
+          const ref = await addDoc(collection(db, 'seller_coins'), {
+            ...coin,
+            sellerId: userId,
+            totalSupply: 1000000,
+            currentPrice: 1.00,
+            isActive: true,
+            createdAt: serverTimestamp(),
+          })
+          const newCoin: SellerCoin = {
+            ...coin,
+            id: ref.id,
+            totalSupply: 1000000,
+            currentPrice: 1.00,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+          }
+          set((s) => ({ coins: [newCoin, ...s.coins] }))
+        } catch (e) { console.error('[SellerStore] createCoin error:', e); throw e }
       },
-      updateCoin: (id, updates) => {
-        set((s) => ({ coins: s.coins.map((c) => c.id === id ? { ...c, ...updates } : c) }))
+
+      updateCoin: async (id, updates) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'seller_coins', id), updates as any)
+          set((s) => ({ coins: s.coins.map((c) => c.id === id ? { ...c, ...updates } : c) }))
+        } catch (e) { console.error('[SellerStore] updateCoin error:', e); throw e }
       },
-      deleteCoin: (id) => {
-        set((s) => ({ coins: s.coins.filter((c) => c.id !== id) }))
+
+      deleteCoin: async (id) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, deleteDoc } = await import('firebase/firestore')
+          await deleteDoc(doc(db, 'seller_coins', id))
+          set((s) => ({ coins: s.coins.filter((c) => c.id !== id) }))
+        } catch (e) { console.error('[SellerStore] deleteCoin error:', e); throw e }
       },
-      toggleCoinActive: (id) => {
-        set((s) => ({ coins: s.coins.map((c) => c.id === id ? { ...c, isActive: !c.isActive } : c) }))
+
+      toggleCoinActive: async (id) => {
+        const coin = get().coins.find(c => c.id === id)
+        if (!coin) return
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'seller_coins', id), { isActive: !coin.isActive })
+          set((s) => ({ coins: s.coins.map((c) => c.id === id ? { ...c, isActive: !c.isActive } : c) }))
+        } catch (e) { console.error('[SellerStore] toggleCoinActive error:', e); throw e }
       },
 
       // ── Investors ────────────────────────────────────────────────────────
@@ -273,50 +348,120 @@ export const useSellerStore = create<SellerState>()(
       },
 
       // ── Withdrawals ───────────────────────────────────────────────────────
-      approveWithdrawal: (id) => {
-        set((s) => ({ withdrawals: s.withdrawals.map((w) => w.id === id ? { ...w, status: 'APPROVED' as const } : w) }))
+      approveWithdrawal: async (id, investorId) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc, setDoc, increment } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'withdrawals', id), { status: 'APPROVED' })
+          // Credit available balance back to investor (they can now re-withdraw or it flows to completed)
+          set((s) => ({ withdrawals: s.withdrawals.map((w) => w.id === id ? { ...w, status: 'APPROVED' as const } : w) }))
+        } catch (e) { console.error('[SellerStore] approveWithdrawal error:', e); throw e }
       },
-      rejectWithdrawal: (id, notes) => {
-        set((s) => ({ withdrawals: s.withdrawals.map((w) => w.id === id ? { ...w, status: 'REJECTED' as const, notes } : w) }))
+
+      rejectWithdrawal: async (id, notes) => {
+        const w = get().withdrawals.find(w => w.id === id)
+        if (!w) return
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc, setDoc, increment } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'withdrawals', id), { status: 'REJECTED', notes: notes || null })
+          // Refund balance to investor
+          if (w.investorId) {
+            await setDoc(doc(db, 'user_flags', w.investorId), {
+              availableBalance: increment(w.amount),
+            }, { merge: true })
+          }
+          set((s) => ({ withdrawals: s.withdrawals.map((wd) => wd.id === id ? { ...wd, status: 'REJECTED' as const, notes } : wd) }))
+        } catch (e) { console.error('[SellerStore] rejectWithdrawal error:', e); throw e }
       },
-      markWithdrawalCompleted: (id) => {
-        set((s) => ({ withdrawals: s.withdrawals.map((w) => w.id === id ? { ...w, status: 'COMPLETED' as const, processedAt: new Date().toISOString() } : w) }))
+
+      markWithdrawalCompleted: async (id) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'withdrawals', id), { status: 'COMPLETED', processedAt: serverTimestamp() })
+          set((s) => ({ withdrawals: s.withdrawals.map((w) => w.id === id ? { ...w, status: 'COMPLETED' as const, processedAt: new Date().toISOString() } : w) }))
+        } catch (e) { console.error('[SellerStore] markWithdrawalCompleted error:', e); throw e }
       },
 
       // ── Tasks ─────────────────────────────────────────────────────────────
-      createTask: (task) => {
-        const newTask: Task = { ...task, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }
-        set((s) => ({ tasks: [newTask, ...s.tasks] }))
+      createTask: async (userId, task) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
+          const ref = await addDoc(collection(db, 'tasks'), {
+            ...task, sellerId: userId, createdAt: serverTimestamp(),
+          })
+          const newTask: Task = { ...task, id: ref.id, createdAt: new Date().toISOString() }
+          set((s) => ({ tasks: [newTask, ...s.tasks] }))
+        } catch (e) { console.error('[SellerStore] createTask error:', e); throw e }
       },
-      updateTaskStatus: (id, status) => {
-        set((s) => ({ tasks: s.tasks.map((t) => t.id === id ? { ...t, status } : t) }))
+
+      updateTaskStatus: async (id, status) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'tasks', id), { status })
+          set((s) => ({ tasks: s.tasks.map((t) => t.id === id ? { ...t, status } : t) }))
+        } catch (e) { console.error('[SellerStore] updateTaskStatus error:', e) }
       },
-      deleteTask: (id) => {
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }))
+
+      deleteTask: async (id) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, deleteDoc } = await import('firebase/firestore')
+          await deleteDoc(doc(db, 'tasks', id))
+          set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }))
+        } catch (e) { console.error('[SellerStore] deleteTask error:', e) }
       },
-      updateTask: (id, updates) => {
-        set((s) => ({ tasks: s.tasks.map((t) => t.id === id ? { ...t, ...updates } : t) }))
+
+      updateTask: async (id, updates) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'tasks', id), updates as any)
+          set((s) => ({ tasks: s.tasks.map((t) => t.id === id ? { ...t, ...updates } : t) }))
+        } catch (e) { console.error('[SellerStore] updateTask error:', e) }
       },
 
       // ── Meetings ──────────────────────────────────────────────────────────
-      createMeeting: (meeting) => {
-        const newMeeting: Meeting = { ...meeting, id: `m_${Date.now()}`, createdAt: new Date().toISOString() }
-        set((s) => ({ meetings: [newMeeting, ...s.meetings] }))
-      },
-      completeMeeting: (id, notes) => {
-        set((s) => ({ meetings: s.meetings.map((m) => m.id === id ? { ...m, status: 'COMPLETED' as const, notes: notes || m.notes } : m) }))
-      },
-      cancelMeeting: (id) => {
-        set((s) => ({ meetings: s.meetings.map((m) => m.id === id ? { ...m, status: 'CANCELLED' as const } : m) }))
+      createMeeting: async (userId, meeting) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
+          const ref = await addDoc(collection(db, 'meetings'), {
+            ...meeting, sellerId: userId, createdAt: serverTimestamp(),
+          })
+          const newMeeting: Meeting = { ...meeting, id: ref.id, createdAt: new Date().toISOString() }
+          set((s) => ({ meetings: [newMeeting, ...s.meetings] }))
+        } catch (e) { console.error('[SellerStore] createMeeting error:', e); throw e }
       },
 
-      // ── Team messages ─────────────────────────────────────────────────────
-      sendMessage: (contactId, content) => {
+      completeMeeting: async (id, notes) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'meetings', id), { status: 'COMPLETED', notes: notes || null })
+          set((s) => ({ meetings: s.meetings.map((m) => m.id === id ? { ...m, status: 'COMPLETED' as const, notes: notes || m.notes } : m) }))
+        } catch (e) { console.error('[SellerStore] completeMeeting error:', e) }
+      },
+
+      cancelMeeting: async (id) => {
+        try {
+          const { db } = await import('@/lib/firebase')
+          const { doc, updateDoc } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'meetings', id), { status: 'CANCELLED' })
+          set((s) => ({ meetings: s.meetings.map((m) => m.id === id ? { ...m, status: 'CANCELLED' as const } : m) }))
+        } catch (e) { console.error('[SellerStore] cancelMeeting error:', e) }
+      },
+
+      // ── Team messages (local-only, backed by chats collection via inbox) ──
+      sendMessage: (contactId, content, senderName) => {
         const newMsg: TeamMessage = {
           id: `msg_${Date.now()}`,
           contactId,
           senderId: 'seller',
-          senderName: 'Demo Seller',
+          senderName,
           senderRole: 'SELLER',
           content,
           timestamp: new Date().toISOString(),
@@ -327,6 +472,7 @@ export const useSellerStore = create<SellerState>()(
           contacts: s.contacts.map((c) => c.id === contactId ? { ...c, lastMessage: content } : c),
         }))
       },
+
       markContactRead: (contactId) => {
         set((s) => ({
           contacts: s.contacts.map((c) => c.id === contactId ? { ...c, unread: 0 } : c),
@@ -337,6 +483,10 @@ export const useSellerStore = create<SellerState>()(
     {
       name: 'investor-panel-seller',
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist lightweight UI state
+        coins: state.coins,
+      }),
     },
   ),
 )

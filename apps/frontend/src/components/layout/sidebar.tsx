@@ -73,25 +73,23 @@ interface SidebarProps {
   role: string
 }
 
-export function Sidebar({ role }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const pathname = usePathname()
-  const { user, logout } = useAuthStore()
-  const { unreadCount } = useNotificationsStore()
+interface SidebarContentProps {
+  collapsed: boolean
+  role: string
+  brand: { label: string; color: string; icon: any }
+  sections: Record<string, NavItem[]>
+  pathname: string
+  setMobileOpen: (v: boolean) => void
+  user: any
+  logout: () => void
+  unreadCount: number
+}
 
-  const navItems = NAV_MAP[role] || INVESTOR_NAV
-  const brand = BRAND_MAP[role] || BRAND_MAP.INVESTOR
-
-  // Group nav items by section
-  const sections = navItems.reduce<Record<string, NavItem[]>>((acc, item) => {
-    const sec = item.section || 'Main'
-    if (!acc[sec]) acc[sec] = []
-    acc[sec].push(item)
-    return acc
-  }, {})
-
-  const SidebarContent = () => (
+function SidebarContent({
+  collapsed, role, brand, sections, pathname,
+  setMobileOpen, user, logout, unreadCount,
+}: SidebarContentProps) {
+  return (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={cn(
@@ -255,6 +253,29 @@ export function Sidebar({ role }: SidebarProps) {
       </div>
     </div>
   )
+}
+
+export function Sidebar({ role }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const pathname = usePathname()
+  const { user, logout } = useAuthStore()
+  const { unreadCount } = useNotificationsStore()
+
+  const navItems = NAV_MAP[role] || INVESTOR_NAV
+  const brand    = BRAND_MAP[role] || BRAND_MAP.INVESTOR
+
+  const sections = navItems.reduce<Record<string, NavItem[]>>((acc, item) => {
+    const sec = item.section || 'Main'
+    if (!acc[sec]) acc[sec] = []
+    acc[sec].push(item)
+    return acc
+  }, {})
+
+  const contentProps: SidebarContentProps = {
+    collapsed, role, brand, sections, pathname,
+    setMobileOpen, user, logout, unreadCount,
+  }
 
   return (
     <>
@@ -265,7 +286,7 @@ export function Sidebar({ role }: SidebarProps) {
         className="hidden lg:flex flex-col h-screen bg-obsidian-950 border-r border-border relative flex-shrink-0 overflow-hidden"
         style={{ backgroundImage: 'linear-gradient(180deg, #0a1628 0%, #0d1f36 50%, #0a1628 100%)' }}
       >
-        <SidebarContent />
+        <SidebarContent {...contentProps} />
 
         {/* Collapse toggle */}
         <button
@@ -306,7 +327,7 @@ export function Sidebar({ role }: SidebarProps) {
               className="lg:hidden fixed left-0 top-0 h-full w-72 bg-obsidian-950 border-r border-border z-50 overflow-hidden"
               style={{ backgroundImage: 'linear-gradient(180deg, #0a1628 0%, #0d1f36 50%, #0a1628 100%)' }}
             >
-              <SidebarContent />
+              <SidebarContent {...contentProps} />
             </motion.aside>
           </>
         )}

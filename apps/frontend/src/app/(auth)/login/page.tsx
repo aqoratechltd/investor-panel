@@ -81,15 +81,14 @@ export default function LoginPage() {
   }
 
   const getSellerRoute = async (userId: string) => {
+    // Direct-to-Market model: no PENDING/REJECTED gates.
+    // TO RE-ENABLE: Restore status checks for 'PENDING' → /seller/pending and 'REJECTED' → /seller/rejected
     try {
       const { db, isFirebaseConfigured } = await import('@/lib/firebase')
       if (!isFirebaseConfigured()) return '/seller'
       const { doc, getDoc } = await import('firebase/firestore')
       const snap = await getDoc(doc(db, 'seller_applications', userId))
       if (!snap.exists()) return '/seller/onboarding'
-      const status = snap.data().status
-      if (status === 'PENDING') return '/seller/pending'
-      if (status === 'REJECTED') return '/seller/rejected'
     } catch {}
     return '/seller'
   }

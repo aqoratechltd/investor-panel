@@ -32,16 +32,19 @@ interface ChatRoom {
 }
 
 function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n}`
+  if (n >= 1_00_00_000) return `₨${(n / 1_00_00_000).toFixed(1)} Cr`
+  if (n >= 1_00_000)    return `₨${(n / 1_00_000).toFixed(1)} L`
+  if (n >= 1_000)       return `₨${(n / 1_000).toFixed(0)}K`
+  return `₨${n.toLocaleString('en-PK')}`
 }
 
-const STATUS = {
-  PENDING:  { label: 'Under Review', icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20' },
-  APPROVED: { label: 'Live',         icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-  REJECTED: { label: 'Rejected',     icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20' },
+const STATUS: Record<string, { label: string; icon: any; color: string; bg: string }> = {
+  PENDING:   { label: 'Under Review', icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20' },
+  APPROVED:  { label: 'Live',         icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  PUBLISHED: { label: 'Live',         icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  REJECTED:  { label: 'Rejected',     icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20' },
 }
+const DEFAULT_STATUS = STATUS.PUBLISHED
 
 export default function SellerDashboard() {
   const router = useRouter()
@@ -151,7 +154,7 @@ export default function SellerDashboard() {
             ) : (
               <div className="divide-y divide-border">
                 {businesses.slice(0, 4).map(b => {
-                  const st = STATUS[b.status]
+                  const st = STATUS[b.status] ?? DEFAULT_STATUS
                   return (
                     <div key={b.id} onClick={() => router.push('/seller/businesses')}
                       className="flex items-center gap-3 p-4 hover:bg-white/[0.02] transition-colors cursor-pointer">

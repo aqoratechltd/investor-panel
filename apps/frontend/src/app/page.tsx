@@ -314,11 +314,11 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              {/* Chart area mock */}
+              {/* Chart area mock — heights are deterministic to avoid SSR/client mismatch */}
               <div className="px-6 pb-6">
                 <div className="glass-card p-4 h-32 flex items-end gap-1 overflow-hidden">
                   {Array.from({ length: 28 }).map((_, i) => {
-                    const height = 20 + Math.sin(i * 0.4) * 20 + Math.random() * 30
+                    const height = 20 + Math.sin(i * 0.4) * 20 + Math.sin(i * 1.7 + 2.3) * 15
                     return (
                       <div
                         key={i}

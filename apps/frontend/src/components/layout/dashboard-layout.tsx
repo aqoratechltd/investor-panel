@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
-
 import { Topbar } from './topbar'
 import { useAuthStore } from '@/stores/auth.store'
 import { useNotificationsStore } from '@/stores/notifications.store'
@@ -15,6 +14,12 @@ interface DashboardLayoutProps {
   subtitle?: string
 }
 
+// True once the first DashboardLayout has mounted on the client.
+// Subsequent instances (client-side navigation) start with mounted=true,
+// preventing the loading flash. Always starts false so SSR and first client
+// render agree — no hydration mismatch.
+let _appMounted = false
+
 export function DashboardLayout({ children, role, title, subtitle }: DashboardLayoutProps) {
   const { user, isAuthenticated, initialize } = useAuthStore()
   const { fetch: fetchNotifications } = useNotificationsStore()
@@ -22,41 +27,34 @@ export function DashboardLayout({ children, role, title, subtitle }: DashboardLa
   const fetchRef = useRef(fetchNotifications)
   fetchRef.current = fetchNotifications
 
-  // Run initialize only once on mount
-  useEffect(() => {
-    initialize()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [mounted, setMounted] = useState(_appMounted)
+  useEffect(() => { _appMounted = true; setMounted(true) }, [])
+
+  useEffect(() => { initialize() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login')
-      return
-    }
-    if (user && user.role !== role) {
-      const roleRoutes: Record<string, string> = {
-        SUPER_ADMIN: '/admin',
-        SELLER: '/seller',
-        INVESTOR: '/investor',
+    if (!mounted) return
+    const t = setTimeout(() => {
+      if (!isAuthenticated) { router.push('/login'); return }
+      if (user && user.role !== role) {
+        const roleRoutes: Record<string, string> = {
+          SUPER_ADMIN: '/admin', SELLER: '/seller', INVESTOR: '/investor',
+        }
+        router.push(roleRoutes[user.role] || '/login')
       }
-      router.push(roleRoutes[user.role] || '/login')
-    }
-  }, [isAuthenticated, user?.role, role]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [mounted, isAuthenticated, user?.role, role]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Start real-time notifications listener when user is available
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return
     fetchRef.current(user.id)
   }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!isAuthenticated || !user) {
+  if (!mounted || !isAuthenticated || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-brand-500/20 flex items-center justify-center animate-pulse-glow">
-            <div className="w-6 h-6 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
-          </div>
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-obsidian-950">
+        <div className="w-8 h-8 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
       </div>
     )
   }

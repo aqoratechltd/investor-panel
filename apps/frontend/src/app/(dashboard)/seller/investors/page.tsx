@@ -24,18 +24,21 @@ interface Investment {
   lockPeriod?: number
 }
 
-const STATUS_CFG = {
-  PENDING:  { label: 'Pending',  Icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20' },
-  APPROVED: { label: 'Approved', Icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-  REJECTED: { label: 'Rejected', Icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20' },
+const STATUS_CFG: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
+  PENDING:              { label: 'Pending',     Icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20' },
+  PENDING_CONFIRMATION: { label: 'Confirming',  Icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20' },
+  APPROVED:             { label: 'Approved',    Icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  REJECTED:             { label: 'Rejected',    Icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20' },
 }
+const DEFAULT_STATUS_CFG = STATUS_CFG.PENDING
 
 type Filter = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
 
 function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n}`
+  if (n >= 1_00_00_000) return `₨${(n / 1_00_00_000).toFixed(1)} Cr`
+  if (n >= 1_00_000)    return `₨${(n / 1_00_000).toFixed(1)} L`
+  if (n >= 1_000)       return `₨${(n / 1_000).toFixed(0)}K`
+  return `₨${n.toLocaleString('en-PK')}`
 }
 
 function fmtDate(v: any) {
@@ -56,12 +59,8 @@ export default function SellerInvestorsPage() {
     const load = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore')
-        const q = query(
-          collection(db, 'investments'),
-          where('sellerId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-        )
+        const { collection, query, where, getDocs } = await import('firebase/firestore')
+        const q = query(collection(db, 'investments'), where('sellerId', '==', user.id))
         const snap = await getDocs(q)
         setInvestments(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Investment))
       } catch (e) {
@@ -166,7 +165,7 @@ export default function SellerInvestorsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filtered.map((inv, i) => {
-                  const st = STATUS_CFG[inv.status]
+                  const st = STATUS_CFG[inv.status] ?? DEFAULT_STATUS_CFG
                   return (
                     <motion.tr key={inv.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
                       className="hover:bg-white/[0.02] transition-colors">

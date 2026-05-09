@@ -55,8 +55,9 @@ interface PortfolioState {
   driftEvents: DriftEvent[]
   isSimulating: boolean
 
-  createPortfolio: (portfolio: Omit<Portfolio, 'id' | 'lastUpdated'>) => void
-  updatePortfolio: (id: string, updates: Partial<Portfolio>) => void
+  loadPortfolios: (sellerId: string) => Promise<void>
+  createPortfolio: (portfolio: Omit<Portfolio, 'id' | 'lastUpdated'>) => Promise<void>
+  updatePortfolio: (id: string, updates: Partial<Portfolio>) => Promise<void>
   generateAISuggestion: (chatHistory: string[], investorProfile: string, context?: { selectedAssets?: any[]; investorName?: string; requestedAmount?: number }) => Promise<void>
   applyMarketDrift: (
     assetId: string,
@@ -84,125 +85,6 @@ function genHistory(baseValue: number, days = 30): Array<{ date: string; value: 
   }
   return history
 }
-
-// ── Seed portfolios ──────────────────────────────────────────
-const SEED_PORTFOLIOS: Portfolio[] = [
-  {
-    id: 'portfolio_001',
-    sellerId: 'user_seller',
-    investorId: 'user_investor',
-    investorName: 'Demo Investor',
-    totalInvested: 248500,
-    currentValue: 281340,
-    lastUpdated: new Date().toISOString(),
-    status: 'ACTIVE',
-    assets: [
-      {
-        assetId: 'asset_002',
-        assetName: 'AlphaScale Ventures',
-        assetSymbol: 'ASV',
-        amount: 100000,
-        allocation: 40.2,
-        currentValue: 113200,
-        profitLoss: 13200,
-        profitPercent: 13.2,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(113200),
-      },
-      {
-        assetId: 'asset_003',
-        assetName: 'StableYield Coin',
-        assetSymbol: 'SYC',
-        amount: 60000,
-        allocation: 24.1,
-        currentValue: 65400,
-        profitLoss: 5400,
-        profitPercent: 9.0,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(65400),
-      },
-      {
-        assetId: 'asset_001',
-        assetName: 'MetaGrowth Token',
-        assetSymbol: 'MGT',
-        amount: 50000,
-        allocation: 20.1,
-        currentValue: 51800,
-        profitLoss: 1800,
-        profitPercent: 3.6,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(51800),
-      },
-      {
-        assetId: 'asset_006',
-        assetName: 'GreenVolt Energy',
-        assetSymbol: 'GVE',
-        amount: 25000,
-        allocation: 10.1,
-        currentValue: 27800,
-        profitLoss: 2800,
-        profitPercent: 11.2,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(27800),
-      },
-      {
-        assetId: 'asset_005',
-        assetName: 'TikTok Ads Pool',
-        assetSymbol: 'TAP',
-        amount: 13500,
-        allocation: 5.5,
-        currentValue: 12140,
-        profitLoss: -1360,
-        profitPercent: -10.1,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(12140),
-      },
-    ],
-  },
-  {
-    id: 'portfolio_002',
-    sellerId: 'user_seller',
-    investorId: 'investor_002',
-    investorName: 'Rachel Torres',
-    totalInvested: 120000,
-    currentValue: 152400,
-    lastUpdated: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    status: 'ACTIVE',
-    assets: [
-      {
-        assetId: 'asset_004',
-        assetName: 'Quantum Logistics Ltd',
-        assetSymbol: 'QLL',
-        amount: 72000,
-        allocation: 60.0,
-        currentValue: 94200,
-        profitLoss: 22200,
-        profitPercent: 30.8,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(94200),
-      },
-      {
-        assetId: 'asset_008',
-        assetName: 'PharmaLink Diagnostics',
-        assetSymbol: 'PLD',
-        amount: 48000,
-        allocation: 40.0,
-        currentValue: 58200,
-        profitLoss: 10200,
-        profitPercent: 21.25,
-        driftPercent: 0,
-        driftDirection: 'NONE',
-        priceHistory: genHistory(58200),
-      },
-    ],
-  },
-]
 
 // ── AI suggestion logic ──────────────────────────────────────
 function analyzeChat(chatHistory: string[], investorProfile: string): AISuggestion {
@@ -331,22 +213,73 @@ function analyzeChat(chatHistory: string[], investorProfile: string): AISuggesti
 
 // ── Store ────────────────────────────────────────────────────
 export const usePortfolioStore = create<PortfolioState>((set, get) => ({
-  portfolios: SEED_PORTFOLIOS,
+  portfolios: [],
   aiSuggestion: null,
   isGeneratingAI: false,
   driftEvents: [],
   isSimulating: false,
 
-  createPortfolio: (portfolio) => {
+  // Load portfolios from Firestore for a seller
+  loadPortfolios: async (sellerId) => {
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { collection, query, where, getDocs } = await import('firebase/firestore')
+      const snap = await getDocs(query(
+        collection(db, 'portfolios'),
+        where('sellerId', '==', sellerId),
+      ))
+      const portfolios: Portfolio[] = snap.docs.map(d => {
+        const data = d.data()
+        return {
+          id: d.id,
+          sellerId: data.sellerId,
+          investorId: data.investorId,
+          investorName: data.investorName || 'Investor',
+          assets: (data.assets || []).map((a: any) => ({
+            ...a,
+            // Regenerate price history for chart display if not stored
+            priceHistory: a.priceHistory?.length ? a.priceHistory : genHistory(a.currentValue || 1000),
+          })),
+          totalInvested: data.totalInvested || 0,
+          currentValue: data.currentValue || 0,
+          lastUpdated: data.lastUpdated?.toDate?.()?.toISOString?.() ?? data.lastUpdated ?? new Date().toISOString(),
+          status: data.status || 'ACTIVE',
+        }
+      })
+      set({ portfolios })
+    } catch (e) {
+      console.error('[PortfolioStore] loadPortfolios error:', e)
+    }
+  },
+
+  createPortfolio: async (portfolio) => {
     const newPortfolio: Portfolio = {
       ...portfolio,
       id: `portfolio_${Date.now()}`,
       lastUpdated: new Date().toISOString(),
     }
-    set((state) => ({ portfolios: [...state.portfolios, newPortfolio] }))
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
+      const ref = await addDoc(collection(db, 'portfolios'), {
+        ...portfolio,
+        lastUpdated: serverTimestamp(),
+      })
+      set((state) => ({ portfolios: [...state.portfolios, { ...newPortfolio, id: ref.id }] }))
+    } catch (e) {
+      console.error('[PortfolioStore] createPortfolio error:', e)
+      set((state) => ({ portfolios: [...state.portfolios, newPortfolio] }))
+    }
   },
 
-  updatePortfolio: (id, updates) => {
+  updatePortfolio: async (id, updates) => {
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore')
+      await updateDoc(doc(db, 'portfolios', id), { ...updates, lastUpdated: serverTimestamp() })
+    } catch (e) {
+      console.error('[PortfolioStore] updatePortfolio error:', e)
+    }
     set((state) => ({
       portfolios: state.portfolios.map((p) =>
         p.id === id ? { ...p, ...updates, lastUpdated: new Date().toISOString() } : p,

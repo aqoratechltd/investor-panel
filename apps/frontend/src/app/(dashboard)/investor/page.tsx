@@ -22,65 +22,6 @@ import {
 import { usePortfolioStore } from '@/stores/portfolio.store'
 import { useAuthStore } from '@/stores/auth.store'
 
-// ─── Mock data ────────────────────────────────────────────────
-
-const MOCK_METRICS = {
-  totalInvested: 248500,
-  currentValue: 281340,
-  totalProfit: 38200,
-  totalLoss: 5360,
-  netROI: 32840,
-  netROIPercent: 13.2,
-  coinBalance: 8420,
-  dailyProfit: 1240,
-  weeklyProfit: 8400,
-  monthlyProfit: 32840,
-}
-
-const MOCK_PORTFOLIO = [
-  { name: 'Meta Ads', value: 100000, color: CHANNEL_COLORS.META_ADS },
-  { name: 'TikTok Ads', value: 50000, color: CHANNEL_COLORS.TIKTOK_ADS },
-  { name: 'Google Ads', value: 60000, color: CHANNEL_COLORS.GOOGLE_ADS },
-  { name: 'WhatsApp', value: 25000, color: CHANNEL_COLORS.WHATSAPP },
-  { name: 'Other', value: 13500, color: CHANNEL_COLORS.OTHER },
-]
-
-const MOCK_PERFORMANCE = Array.from({ length: 30 }, (_, i) => ({
-  date: new Date(2025, 7, i + 1).toISOString().split('T')[0],
-  value: 248500 + Math.sin(i * 0.4) * 8000 + i * 1100,
-}))
-
-const MOCK_INVESTMENTS = [
-  { id: '1', name: 'Meta Ads Fund Alpha', channel: 'META_ADS', amount: 100000, currentValue: 113200, profitLoss: 13200, profitPercent: 13.2, status: 'ACTIVE', startDate: '2025-01-15' },
-  { id: '2', name: 'TikTok Growth Pool', channel: 'TIKTOK_ADS', amount: 50000, currentValue: 51800, profitLoss: 1800, profitPercent: 3.6, status: 'ACTIVE', startDate: '2025-02-01' },
-  { id: '3', name: 'Google Ads Premium', channel: 'GOOGLE_ADS', amount: 60000, currentValue: 65400, profitLoss: 5400, profitPercent: 9.0, status: 'ACTIVE', startDate: '2025-01-20' },
-  { id: '4', name: 'WhatsApp Marketing', channel: 'WHATSAPP', amount: 25000, currentValue: 27800, profitLoss: 2800, profitPercent: 11.2, status: 'ACTIVE', startDate: '2025-02-15' },
-  { id: '5', name: 'Experimental Pool', channel: 'OTHER', amount: 13500, currentValue: 12140, profitLoss: -1360, profitPercent: -10.1, status: 'ACTIVE', startDate: '2025-03-01' },
-]
-
-const MOCK_TRANSACTIONS = [
-  { id: '1', type: 'PROFIT', amount: 1240, description: 'Meta Ads daily return', createdAt: '2025-03-13T08:00:00Z' },
-  { id: '2', type: 'PROFIT', amount: 680, description: 'Google Ads return', createdAt: '2025-03-12T09:30:00Z' },
-  { id: '3', type: 'COIN_EARN', amount: 150, description: 'Daily engagement reward', createdAt: '2025-03-12T10:00:00Z' },
-  { id: '4', type: 'DEPOSIT', amount: 25000, description: 'WhatsApp Marketing fund', createdAt: '2025-03-10T14:00:00Z' },
-  { id: '5', type: 'LOSS', amount: -420, description: 'Experimental Pool adjustment', createdAt: '2025-03-09T16:00:00Z' },
-]
-
-const MOCK_COINS = [
-  { symbol: 'META', name: 'MetaCoin', balance: 4200, returnRate: 5.2, isPositive: true, icon: '🎯', price: 1.24 },
-  { symbol: 'TKTK', name: 'TikTokCoin', balance: 2100, returnRate: 3.6, isPositive: true, icon: '🎵', price: 0.98 },
-  { symbol: 'GRWTH', name: 'GrowthCoin', balance: 1800, returnRate: 8.1, isPositive: true, icon: '📈', price: 2.15 },
-  { symbol: 'XTRA', name: 'ExtraCoin', balance: 320, returnRate: -2.4, isPositive: false, icon: '⚡', price: 0.45 },
-]
-
-const MOCK_BADGES = [
-  { name: 'First Investment', icon: '🥇', earned: true },
-  { name: 'High Roller', icon: '💎', earned: true },
-  { name: 'Consistent Winner', icon: '🏆', earned: true },
-  { name: 'Diamond Hands', icon: '🙌', earned: false },
-  { name: 'Referral King', icon: '👑', earned: false },
-]
-
 const TX_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
   PROFIT: { label: 'Profit', color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: TrendingUp },
   LOSS: { label: 'Loss', color: 'text-red-400', bg: 'bg-red-500/10', icon: TrendingDown },
@@ -312,7 +253,8 @@ function LivePortfolioAssetRow({ asset, index }: {
 
 function LivePortfolioSection() {
   const { getInvestorPortfolio, driftEvents } = usePortfolioStore()
-  const portfolio = getInvestorPortfolio('user_investor')
+  const { user } = useAuthStore()
+  const portfolio = getInvestorPortfolio(user?.id || '')
 
   if (!portfolio) {
     return (
@@ -384,12 +326,12 @@ function LivePortfolioSection() {
 
 // ─── Profit Period Selector ───────────────────────────────────
 
-function ProfitPeriodCard() {
+function ProfitPeriodCard({ metrics }: { metrics: { dailyProfit: number; weeklyProfit: number; monthlyProfit: number } }) {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly')
   const values = {
-    daily: MOCK_METRICS.dailyProfit,
-    weekly: MOCK_METRICS.weeklyProfit,
-    monthly: MOCK_METRICS.monthlyProfit,
+    daily:   metrics.dailyProfit,
+    weekly:  metrics.weeklyProfit,
+    monthly: metrics.monthlyProfit,
   }
   return (
     <div className="gradient-border p-6 h-full" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)' }}>
@@ -441,9 +383,39 @@ function ProfitPeriodCard() {
 
 // ─── Withdrawal Modal ─────────────────────────────────────────
 
-function WithdrawalModal({ onClose }: { onClose: () => void }) {
-  const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState('BANK_TRANSFER')
+function WithdrawalModal({ onClose, availableBalance, userId }: { onClose: () => void; availableBalance: number; userId: string }) {
+  const [amount, setAmount]             = useState('')
+  const [method, setMethod]             = useState('BANK')
+  const [accountDetails, setAccountDetails] = useState('')
+  const [submitting, setSubmitting]     = useState(false)
+
+  const handleSubmit = async () => {
+    const amt = parseFloat(amount)
+    if (!amt || amt <= 0)       { return }
+    if (amt > availableBalance) { return }
+    if (!accountDetails.trim()) { return }
+    setSubmitting(true)
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { collection, addDoc, doc, setDoc, increment, serverTimestamp } = await import('firebase/firestore')
+      const ref = await addDoc(collection(db, 'withdrawals'), {
+        investorId: userId, amount: amt, method, accountDetails: accountDetails.trim(),
+        status: 'PENDING', requestedAt: serverTimestamp(), processedAt: null, notes: null,
+      })
+      await setDoc(doc(db, 'user_flags', userId), { availableBalance: increment(-amt), userId }, { merge: true })
+      await addDoc(collection(db, 'transactions'), {
+        investorId: userId, type: 'WITHDRAWAL',
+        description: `Withdrawal via ${method} — $${amt.toLocaleString()}`,
+        amount: -amt, status: 'PENDING',
+        reference: `WD-${ref.id.slice(0, 8).toUpperCase()}`,
+        createdAt: serverTimestamp(),
+      })
+      onClose()
+    } catch (e: any) {
+      console.error(e)
+    }
+    setSubmitting(false)
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -455,36 +427,35 @@ function WithdrawalModal({ onClose }: { onClose: () => void }) {
         style={{ background: 'hsl(222 44% 8%)' }}
       >
         <h2 className="text-xl font-display font-bold mb-2">Request Withdrawal</h2>
-        <p className="text-sm text-muted-foreground mb-6">Available balance: <span className="text-brand-400 font-mono">{formatCurrency(0)}</span></p>
+        <p className="text-sm text-muted-foreground mb-6">Available balance: <span className="text-brand-400 font-mono">{formatCurrency(availableBalance)}</span></p>
 
         <div className="space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Amount (USD)</label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
               placeholder="Enter amount..."
-              className="w-full h-11 px-4 bg-background/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-            />
+              className="w-full h-11 px-4 bg-background/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Account Details</label>
+            <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)}
+              placeholder="IBAN / Phone / Account ID..."
+              className="w-full h-11 px-4 bg-background/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Withdrawal Method</label>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              className="w-full h-11 px-4 bg-background/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 appearance-none"
-            >
-              {['BANK_TRANSFER', 'EASYPAISA', 'JAZZCASH', 'STRIPE'].map((m) => (
+            <select value={method} onChange={(e) => setMethod(e.target.value)}
+              className="w-full h-11 px-4 bg-background/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 appearance-none">
+              {['BANK', 'EASYPAISA', 'JAZZCASH', 'STRIPE'].map((m) => (
                 <option key={m} value={m}>{m.replace('_', ' ')}</option>
               ))}
             </select>
           </div>
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button className="flex-1 gap-2" onClick={onClose}>
-              <ArrowDownToLine className="w-4 h-4" />
-              Submit Request
+            <Button variant="outline" className="flex-1" onClick={onClose} disabled={submitting}>Cancel</Button>
+            <Button className="flex-1 gap-2" onClick={handleSubmit}
+              disabled={!amount || parseFloat(amount) <= 0 || !accountDetails.trim() || submitting}>
+              {submitting ? <><div className="w-4 h-4 border-2 border-obsidian-950 border-t-transparent rounded-full animate-spin" /> Submitting…</> : <><ArrowDownToLine className="w-4 h-4" /> Submit Request</>}
             </Button>
           </div>
         </div>
@@ -500,8 +471,10 @@ export default function InvestorDashboard() {
   const [showWithdrawal, setShowWithdrawal] = useState(false)
 
   // ── Real Firestore data ───────────────────────────────────────
-  const [realInvestments, setRealInvestments] = useState<any[]>([])
-  const [realBadges,      setRealBadges]      = useState<any[]>([])
+  const [realInvestments, setRealInvestments]   = useState<any[]>([])
+  const [realBadges,      setRealBadges]         = useState<any[]>([])
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+  const [availableBalance, setAvailableBalance]  = useState(0)
   const [realMetrics, setRealMetrics] = useState({
     totalInvested: 0, currentValue: 0, netROI: 0, netROIPercent: 0, coinBalance: 0,
     dailyProfit: 0, weeklyProfit: 0, monthlyProfit: 0,
@@ -512,26 +485,49 @@ export default function InvestorDashboard() {
     const load = async () => {
       try {
         const { db } = await import('@/lib/firebase')
-        const { collection, query, where, getDocs, getDoc, doc, orderBy } = await import('firebase/firestore')
+        const { collection, query, where, getDocs, getDoc, doc } = await import('firebase/firestore')
 
-        // Load investments
-        const invSnap = await getDocs(query(
-          collection(db, 'investments'),
-          where('investorId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-        ))
+        const [invSnap, badgeSnap, txSnap, flagSnap, wdSnap] = await Promise.all([
+          getDocs(query(collection(db, 'investments'),  where('investorId', '==', user.id))),
+          getDocs(query(collection(db, 'badges'),       where('userId',     '==', user.id))),
+          getDocs(query(collection(db, 'transactions'), where('investorId', '==', user.id))).catch(() => null),
+          getDoc(doc(db, 'user_flags', user.id)),
+          getDocs(query(collection(db, 'withdrawals'),  where('investorId', '==', user.id))).catch(() => null),
+        ])
+
         const invs = invSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]
         setRealInvestments(invs)
-
-        // Load badges
-        const badgeSnap = await getDocs(query(
-          collection(db, 'badges'),
-          where('userId', '==', user.id),
-        ))
         setRealBadges(badgeSnap.docs.map(d => ({ id: d.id, ...d.data() })))
 
+        // Build recent activity: transactions + investment records
+        const txList = txSnap
+          ? txSnap.docs.map(d => {
+              const data = d.data()
+              return {
+                id: d.id, type: data.type, amount: data.amount || 0,
+                description: data.description || '',
+                createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt ?? new Date().toISOString(),
+                coinAmount: data.coinAmount,
+              }
+            })
+          : []
+
+        // Also pull latest investment records as INVESTMENT type
+        const invActivity = invs.slice(0, 3).map(inv => ({
+          id: `inv_${inv.id}`,
+          type: 'INVESTMENT',
+          amount: -(inv.amount || 0),
+          description: `Investment in ${inv.businessName || 'Business'}`,
+          createdAt: inv.createdAt?.toDate?.()?.toISOString?.() ?? inv.createdAt ?? new Date().toISOString(),
+        }))
+
+        const allActivity = [...txList, ...invActivity]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 5)
+        setRecentTransactions(allActivity)
+
         // Compute metrics from approved investments
-        const approved = invs.filter((i: any) => i.status === 'APPROVED')
+        const approved = invs.filter((i: any) => i.status === 'APPROVED' || i.status === 'PENDING')
         const totalInvested = approved.reduce((s: number, i: any) => s + (i.amount || 0), 0)
         const avgROI = approved.length > 0
           ? approved.reduce((s: number, i: any) => s + (i.expectedROI || 0), 0) / approved.length
@@ -539,9 +535,10 @@ export default function InvestorDashboard() {
         const currentValue = totalInvested * (1 + avgROI / 100)
         const netROI = currentValue - totalInvested
 
-        // Load coin balance from user_flags
-        const flagSnap = await getDoc(doc(db, 'user_flags', user.id))
-        const coinBalance = flagSnap.exists() ? (flagSnap.data()?.points || 0) : 0
+        const flagData = flagSnap.exists() ? flagSnap.data() : {}
+        const coinBalance = flagData?.coinBalance ?? flagData?.points ?? 0
+        const balance = flagData?.availableBalance ?? 0
+        setAvailableBalance(balance)
 
         setRealMetrics({
           totalInvested,
@@ -589,14 +586,14 @@ export default function InvestorDashboard() {
     })
   })()
 
-  // Build portfolio allocation from real approved investments
+  // Build portfolio allocation from real investments
   const realPortfolio = (() => {
-    const approved = realInvestments.filter((i: any) => i.status === 'APPROVED')
-    if (approved.length === 0) return MOCK_PORTFOLIO
+    const active = realInvestments.filter((i: any) => i.status === 'APPROVED' || i.status === 'PENDING')
+    if (active.length === 0) return []
     const groups: Record<string, number> = {}
-    approved.forEach((inv: any) => {
-      const key = inv.investmentType || inv.businessName || 'Other'
-      groups[key] = (groups[key] || 0) + inv.amount
+    active.forEach((inv: any) => {
+      const key = inv.businessName || inv.investmentType || 'Other'
+      groups[key] = (groups[key] || 0) + (inv.amount || 0)
     })
     return Object.entries(groups).map(([name, value], i) => ({
       name,
@@ -626,25 +623,31 @@ export default function InvestorDashboard() {
       {/* Market Alerts Ticker */}
       <MarketAlertsTicker />
 
-      {/* AI Insight Banner */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="mb-6 flex items-center gap-3 p-4 rounded-xl border border-brand-500/20 bg-brand-500/5"
-      >
-        <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center flex-shrink-0">
-          <Sparkles className="w-4 h-4 text-brand-400" />
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium">AI Insight</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Based on your current portfolio trend, <span className="text-emerald-400 font-medium">projected monthly profit for April is +$38,400</span> — a 17% increase from March if Meta Ads performance sustains.
-          </p>
-        </div>
-        <Button size="icon-sm" variant="ghost" className="flex-shrink-0">
-          <Info className="w-4 h-4" />
-        </Button>
-      </motion.div>
+      {/* AI Insight Banner — shown only when user has investments */}
+      {realInvestments.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="mb-6 flex items-center gap-3 p-4 rounded-xl border border-brand-500/20 bg-brand-500/5"
+        >
+          <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-4 h-4 text-brand-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium">Portfolio Summary</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              You have <span className="text-brand-400 font-medium">{realInvestments.length} investment{realInvestments.length !== 1 ? 's' : ''}</span> totalling{' '}
+              <span className="text-emerald-400 font-medium">{formatCurrency(realMetrics.totalInvested)}</span>.
+              {realMetrics.netROI > 0 && (
+                <> Current estimated return: <span className="text-emerald-400 font-medium">+{formatCurrency(realMetrics.netROI)}</span>.</>
+              )}
+            </p>
+          </div>
+          <Button size="icon-sm" variant="ghost" className="flex-shrink-0">
+            <Info className="w-4 h-4" />
+          </Button>
+        </motion.div>
+      )}
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -709,7 +712,7 @@ export default function InvestorDashboard() {
         </div>
 
         {/* Profit Period Card */}
-        <ProfitPeriodCard />
+        <ProfitPeriodCard metrics={realMetrics} />
       </div>
 
       {/* Portfolio + Coins Row */}
@@ -731,37 +734,22 @@ export default function InvestorDashboard() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="font-display font-bold">My Coins</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Investment channel tokens</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Earned through investments & activity</p>
             </div>
             <Button size="sm" variant="glass" asChild><a href="/investor/coins">View all</a></Button>
           </div>
-          <div className="space-y-3">
-            {MOCK_COINS.map((coin, i) => (
-              <motion.div
-                key={coin.symbol}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08 }}
-                className="flex items-center gap-3 p-3 glass-card rounded-xl"
-              >
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
-                  {coin.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{coin.name}</p>
-                    <span className="text-[10px] text-muted-foreground font-mono">{coin.symbol}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{formatNumber(coin.balance)} coins</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-mono font-medium">${formatCurrency(coin.balance * coin.price)}</p>
-                  <p className={cn('text-xs font-mono', getPnLColor(coin.isPositive ? 1 : -1))}>
-                    {coin.isPositive ? '+' : ''}{coin.returnRate}% p.m.
-                  </p>
-                </div>
-              </motion.div>
-            ))}
+          <div className="flex flex-col items-center justify-center py-6 gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+              <Coins className="w-7 h-7 text-amber-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold font-mono text-amber-400">{formatNumber(realMetrics.coinBalance)}</p>
+              <p className="text-xs text-muted-foreground mt-1">◈ coins balance</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              ≈ <span className="text-foreground font-medium">${(realMetrics.coinBalance * 0.01).toFixed(0)}</span> in platform credits
+            </p>
+            <Button size="sm" variant="glass" asChild className="mt-2"><a href="/investor/coins">Earn &amp; Redeem</a></Button>
           </div>
         </div>
       </div>
@@ -790,7 +778,12 @@ export default function InvestorDashboard() {
             <Button size="sm" variant="ghost" asChild><a href="/investor/transactions">View all</a></Button>
           </div>
           <div className="space-y-2">
-            {MOCK_TRANSACTIONS.map((tx, i) => {
+            {recentTransactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <Activity className="w-7 h-7 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No transactions yet</p>
+              </div>
+            ) : recentTransactions.map((tx, i) => {
               const config = TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.DEPOSIT
               const TxIcon = config.icon
               return (
@@ -809,7 +802,9 @@ export default function InvestorDashboard() {
                     <p className="text-xs text-muted-foreground">{formatDate(tx.createdAt, 'relative')}</p>
                   </div>
                   <span className={cn('font-mono text-sm font-semibold flex-shrink-0', config.color)}>
-                    {tx.amount >= 0 ? '+' : ''}{tx.type === 'COIN_EARN' ? `${tx.amount} coins` : formatCurrency(Math.abs(tx.amount))}
+                    {tx.coinAmount
+                      ? `+${tx.coinAmount} ◈`
+                      : `${tx.amount >= 0 ? '+' : ''}${formatCurrency(Math.abs(tx.amount))}`}
                   </span>
                 </motion.div>
               )
@@ -875,7 +870,13 @@ export default function InvestorDashboard() {
       </div>
 
       {/* Withdrawal Modal */}
-      {showWithdrawal && <WithdrawalModal onClose={() => setShowWithdrawal(false)} />}
+      {showWithdrawal && user && (
+        <WithdrawalModal
+          onClose={() => setShowWithdrawal(false)}
+          availableBalance={availableBalance}
+          userId={user.id}
+        />
+      )}
     </DashboardLayout>
   )
 }

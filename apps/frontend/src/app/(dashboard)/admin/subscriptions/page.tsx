@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   CreditCard, Plus, TrendingUp, Users, DollarSign,
@@ -71,8 +71,10 @@ function ChangePlanModal({ sub, onClose, onUpdate }: { sub: Subscription; onClos
 }
 
 export default function AdminSubscriptionsPage() {
-  const { subscriptions, cancelSubscription, updatePlan } = useAdminStore()
+  const { subscriptions, cancelSubscription, updatePlan, initialize, isLoaded } = useAdminStore()
   const [activeTab, setActiveTab] = useState<'overview' | 'plans' | 'billing'>('overview')
+
+  useEffect(() => { if (!isLoaded) initialize() }, [isLoaded, initialize])
   const [editSub, setEditSub] = useState<Subscription | null>(null)
 
   const totalMRR = subscriptions.filter(s => s.status === 'ACTIVE').reduce((sum, s) => sum + s.amount, 0)
